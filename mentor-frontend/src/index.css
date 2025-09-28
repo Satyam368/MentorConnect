@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mentor Connect Design System - Professional Education Platform */
+
+@layer base {
+  :root {
+    /* Base colors - Modern education platform palette */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    
+    /* Brand colors - Professional blues and purples */
+    --primary: 225 73% 57%;        /* Modern blue */
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 225 100% 67%;   /* Lighter blue for gradients */
+    
+    --secondary: 262 52% 47%;       /* Professional purple */
+    --secondary-foreground: 0 0% 100%;
+    
+    --accent: 197 71% 73%;          /* Light blue accent */
+    --accent-foreground: 222 47% 11%;
+    
+    /* Surface colors */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    
+    --muted: 220 13% 95%;
+    --muted-foreground: 220 9% 46%;
+    
+    /* Interactive colors */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 225 73% 57%;
+    
+    /* Design tokens */
+    --radius: 0.75rem;
+    
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(225 73% 57%), hsl(262 52% 47%));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(220 13% 98%));
+    --gradient-accent: linear-gradient(135deg, hsl(197 71% 73%), hsl(225 100% 67%));
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(220 13% 91% / 0.5);
+    --shadow-md: 0 4px 6px -1px hsl(220 13% 91% / 0.7);
+    --shadow-lg: 0 10px 15px -3px hsl(220 13% 91% / 0.4);
+    --shadow-glow: 0 0 40px hsl(225 73% 57% / 0.3);
+    
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark mode - Professional education platform */
+    --background: 222 47% 4%;
+    --foreground: 0 0% 95%;
+    
+    --primary: 225 100% 67%;
+    --primary-foreground: 222 47% 4%;
+    --primary-glow: 225 100% 77%;
+    
+    --secondary: 262 70% 60%;
+    --secondary-foreground: 222 47% 4%;
+    
+    --accent: 197 71% 73%;
+    --accent-foreground: 222 47% 4%;
+    
+    --card: 222 47% 7%;
+    --card-foreground: 0 0% 95%;
+    
+    --popover: 222 47% 7%;
+    --popover-foreground: 0 0% 95%;
+    
+    --muted: 222 47% 12%;
+    --muted-foreground: 220 9% 55%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 222 47% 12%;
+    --input: 222 47% 12%;
+    --ring: 225 100% 67%;
+    
+    --gradient-hero: linear-gradient(135deg, hsl(225 100% 67%), hsl(262 70% 60%));
+    --gradient-card: linear-gradient(145deg, hsl(222 47% 7%), hsl(222 47% 9%));
+    --gradient-accent: linear-gradient(135deg, hsl(197 71% 73%), hsl(225 100% 77%));
+    
+    --shadow-sm: 0 1px 2px 0 hsl(222 47% 4% / 0.8);
+    --shadow-md: 0 4px 6px -1px hsl(222 47% 4% / 0.9);
+    --shadow-lg: 0 10px 15px -3px hsl(222 47% 4% / 0.6);
+    --shadow-glow: 0 0 40px hsl(225 100% 67% / 0.4);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+  
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+  
+  .shadow-elegant {
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  
+  .mentor-card {
+    @apply gradient-card border border-border/50 rounded-xl p-6 shadow-elegant hover:shadow-glow transition-smooth hover:-translate-y-1;
+  }
+  
+  .hero-section {
+    @apply gradient-hero text-primary-foreground;
+  }
+}
