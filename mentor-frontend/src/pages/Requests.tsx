@@ -9,9 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Clock, Video, Phone, MessageSquare, Plus, Trash2, X } from "lucide-react";
+import { API_ENDPOINTS } from "@/lib/api";
+import { useSocket } from "@/hooks/useSocket";
 
 interface Request {
   _id: string;
+  mentor: string;
   mentorName: string;
   sessionType: string;
   duration: string;
@@ -19,7 +22,7 @@ interface Request {
   time: string;
   notes?: string;
   cost: number;
-  status: 'pending' | 'confirmed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   createdAt: string;
   updatedAt: string;
 }
@@ -31,8 +34,15 @@ const Requests = () => {
   const [mentors, setMentors] = useState<any[]>([]);
   const { toast } = useToast();
 
+  // Get current user first
+  const currentUser = JSON.parse(localStorage.getItem('authUser') || localStorage.getItem('user') || '{}');
+  
+  // Initialize socket with currentUser
+  const { socket } = useSocket(currentUser?.email);
+
   // Form state for new request
   const [formData, setFormData] = useState({
+    mentorId: "",
     mentorName: "",
     sessionType: "",
     duration: "",
@@ -42,14 +52,12 @@ const Requests = () => {
     cost: 0
   });
 
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-
   // Fetch user's requests
   const fetchRequests = async () => {
     try {
       if (!currentUser.id) return;
       
-      const response = await fetch(`http://localhost:5000/api/bookings/user/${currentUser.id}`);
+      const response = await fetch(API_ENDPOINTS.BOOKINGS_BY_USER(currentUser.id));
       if (response.ok) {
         const data = await response.json();
         setRequests(data);
@@ -75,7 +83,7 @@ const Requests = () => {
   // Fetch available mentors
   const fetchMentors = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/mentors');
+      const response = await fetch(API_ENDPOINTS.MENTORS);
       if (response.ok) {
         const data = await response.json();
         setMentors(data.mentors || []);
@@ -89,6 +97,63 @@ const Requests = () => {
     fetchRequests();
     fetchMentors();
   }, []);
+
+  // Listen for real-time booking status updates
+  useEffect(() => {
+    if (!socket || !currentUser?.id) return;
+
+    console.log('🔊 Setting up booking status listener in Requests page');
+
+    const handleBookingStatusUpdate = (data: any) => {
+      console.log('📢 Booking status updated:', data);
+      
+      // Only process for mentees/students, not mentors
+      if (currentUser.role === 'mentor') {
+        return; // Mentors use this page differently
+      }
+      
+      // Show notification to mentee
+      const action = data.action === 'accepted' ? 'accepted' : 'declined';
+      toast({
+        title: `Session ${action}!`,
+        description: `${data.mentorName} has ${action} your session request.`,
+        variant: data.action === 'accepted' ? 'default' : 'destructive'
+      });
+
+      // Refresh the requests list
+      fetchRequests();
+    };
+
+    const handleNewSessionRequest = (data: any) => {
+      console.log('📢 New session request received:', data);
+      
+      // Only process for mentors
+      if (currentUser.role !== 'mentor') {
+        return;
+      }
+      
+      // Show notification to mentor
+      toast({
+        title: "New Session Request!",
+        description: `New session request for ${data.sessionType} - ${data.duration}`,
+      });
+
+      // Refresh the requests list
+      fetchRequests();
+      
+      // Dispatch event to update notification count
+      window.dispatchEvent(new Event('notificationUpdate'));
+    };
+
+    socket.on('booking-status-updated', handleBookingStatusUpdate);
+    socket.on('new-session-request', handleNewSessionRequest);
+
+    return () => {
+      console.log('🧹 Cleaning up booking status listener');
+      socket.off('new-session-request', handleNewSessionRequest);
+      socket.off('booking-status-updated', handleBookingStatusUpdate);
+    };
+  }, [socket, currentUser, toast]);
 
   // Handle form submission for new request
   const handleCreateRequest = async (e: React.FormEvent) => {
@@ -104,14 +169,21 @@ const Requests = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/bookings', {
+      const response = await fetch(API_ENDPOINTS.BOOKINGS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           userId: currentUser.id,
-          ...formData
+          mentorId: formData.mentorId,
+          mentorName: formData.mentorName,
+          sessionType: formData.sessionType,
+          duration: formData.duration,
+          date: formData.date,
+          time: formData.time,
+          notes: formData.notes,
+          cost: formData.cost
         }),
       });
 
@@ -122,6 +194,7 @@ const Requests = () => {
         });
         setIsDialogOpen(false);
         setFormData({
+          mentorId: "",
           mentorName: "",
           sessionType: "",
           duration: "",
@@ -152,7 +225,7 @@ const Requests = () => {
   // Handle request deletion
   const handleDeleteRequest = async (requestId: string) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/bookings/booking/${requestId}`, {
+      const response = await fetch(API_ENDPOINTS.BOOKING_BY_ID(requestId), {
         method: 'DELETE',
       });
 
@@ -187,9 +260,10 @@ const Requests = () => {
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
-      case 'confirmed': return 'default';
-      case 'pending': return 'secondary';
-      case 'cancelled': return 'outline';
+      case 'confirmed': return 'default'; // Green/success for accepted
+      case 'pending': return 'secondary'; // Yellow/warning for pending
+      case 'cancelled': return 'destructive'; // Red for cancelled
+      case 'completed': return 'outline'; // Gray for completed
       default: return 'outline';
     }
   };
@@ -348,22 +422,33 @@ const Requests = () => {
             </Card>
           ) : (
             requests.map((request) => (
-              <Card key={request._id} className="mentor-card">
+              <Card 
+                key={request._id} 
+                className={`mentor-card ${
+                  request.status === 'confirmed' ? 'border-l-4 border-l-green-500 bg-green-50/50' : 
+                  request.status === 'cancelled' ? 'opacity-60' : ''
+                }`}
+              >
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">{request.mentorName}</CardTitle>
                     <div className="flex items-center gap-2">
                       <Badge variant={getStatusBadgeVariant(request.status)}>
-                        {request.status}
+                        {request.status === 'confirmed' ? '✓ Confirmed' : 
+                         request.status === 'pending' ? 'Pending' :
+                         request.status === 'cancelled' ? 'Declined' : 
+                         request.status}
                       </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteRequest(request._id)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {(request.status === 'pending' || request.status === 'cancelled') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteRequest(request._id)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -396,7 +481,17 @@ const Requests = () => {
 
                   <div className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground">
-                      Created: {new Date(request.createdAt).toLocaleDateString()}
+                      <div>Requested: {new Date(request.createdAt).toLocaleDateString()} at {new Date(request.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      {request.status === 'confirmed' && request.updatedAt && (
+                        <div className="mt-1 text-green-600 font-medium">
+                          ✓ Accepted on {new Date(request.updatedAt).toLocaleDateString()} at {new Date(request.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
+                      {request.status === 'cancelled' && request.updatedAt && (
+                        <div className="mt-1 text-red-600 font-medium">
+                          ✗ Declined on {new Date(request.updatedAt).toLocaleDateString()} at {new Date(request.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       {request.status === 'pending' && (
@@ -405,7 +500,29 @@ const Requests = () => {
                           Cancel
                         </Button>
                       )}
-                      <Button variant="hero" size="sm">
+                      {request.status === 'confirmed' && (
+                        <>
+                          {/* Check if session date has passed */}
+                          {new Date(request.date) < new Date() ? (
+                            <Button variant="default" size="sm" onClick={() => window.location.href = `/video-call?recording=${request._id}`}>
+                              <Video className="h-4 w-4 mr-1" />
+                              View Recording
+                            </Button>
+                          ) : (
+                            <Button variant="default" size="sm" onClick={() => window.location.href = '/booking'}>
+                              <Calendar className="h-4 w-4 mr-1" />
+                              View Session
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      {request.status === 'completed' && (
+                        <Button variant="default" size="sm" onClick={() => window.location.href = `/video-call?recording=${request._id}`}>
+                          <Video className="h-4 w-4 mr-1" />
+                          View Recording
+                        </Button>
+                      )}
+                      <Button variant="hero" size="sm" onClick={() => window.location.href = `/chat/${request.mentor}`}>
                         <MessageSquare className="h-4 w-4 mr-1" />
                         Message Mentor
                       </Button>

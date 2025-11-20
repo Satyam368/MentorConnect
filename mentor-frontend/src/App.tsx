@@ -12,6 +12,8 @@ import MentorDashboard from "./pages/MentorDashboard";
 import FindMentors from "./pages/FindMentors";
 import About from "./pages/About";
 import Chat from "./pages/Chat";
+import Messages from "./pages/Messages";
+import ChatRequests from "./pages/ChatRequests";
 import Profile from "./pages/Profile";
 import Booking from "./pages/Booking";
 import Progress from "./pages/Progress";
@@ -22,6 +24,7 @@ import Verify from "./pages/Verify";
 import Notifications from "./pages/Notifications";
 import BlogEditor from "./pages/BlogEditor";
 import Requests from "./pages/Requests";
+import VideoCall from "./pages/VideoCall";
 
 const queryClient = new QueryClient();
 
@@ -49,9 +52,12 @@ const App = () => (
             <Route path="/blog/:id" element={<Blog />} />
             <Route path="/blog-editor" element={<BlogEditor />} />
             <Route path="/files" element={<FileSharing />} />
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/chat-requests" element={<ChatRequests />} />
             <Route path="/chat/:mentorId?" element={<Chat />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/requests" element={<Requests />} />
+            <Route path="/video-call" element={<VideoCall />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

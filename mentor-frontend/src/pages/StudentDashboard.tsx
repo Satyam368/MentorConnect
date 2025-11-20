@@ -8,8 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Search, BookOpen, Calendar, MessageCircle, Star, Clock, User, Edit3, Phone, Mail, MapPin, Target, Briefcase } from "lucide-react";
+import { Search, BookOpen, Calendar, MessageCircle, Star, Clock, User, Edit3, Phone, Mail, MapPin, Target, Briefcase, MessageSquare, Check, X, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSocket } from "@/hooks/useSocket";
+import { API_ENDPOINTS } from "@/lib/api";
 
 const StudentDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -18,6 +20,18 @@ const StudentDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+
+  // Real data from backend
+  const [upcomingSessions, setUpcomingSessions] = useState<any[]>([]);
+  const [recommendedMentors, setRecommendedMentors] = useState<any[]>([]);
+  const [chatRequests, setChatRequests] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [stats, setStats] = useState({
+    completedSessions: 0,
+    activeMentors: 0,
+    hoursLearned: 0,
+    averageRating: 0
+  });
 
   // Student profile state
   const [studentProfile, setStudentProfile] = useState({
@@ -40,10 +54,13 @@ const StudentDashboard = () => {
   const [newGoal, setNewGoal] = useState("");
   const [newInterest, setNewInterest] = useState("");
   const [newPortfolioLink, setNewPortfolioLink] = useState("");
+  
+  // Socket connection
+  const { socket } = useSocket(currentUser?.email);
 
-  // Load student profile on component mount
+  // Load student profile and dashboard data on component mount
   useEffect(() => {
-    const loadStudentProfile = async () => {
+    const loadDashboardData = async () => {
       try {
         const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
         
@@ -57,6 +74,7 @@ const StudentDashboard = () => {
         }
 
         const user = JSON.parse(userData);
+        setCurrentUser(user);
         
         // Set basic user info
         setStudentProfile(prev => ({
@@ -66,10 +84,10 @@ const StudentDashboard = () => {
           phone: user.phone || ""
         }));
 
-        // Try to fetch existing profile data from backend
+        // Fetch profile data from backend
         if (user.email) {
           try {
-            const profileResponse = await fetch(`http://localhost:3000/api/profile/${encodeURIComponent(user.email)}`);
+            const profileResponse = await fetch(API_ENDPOINTS.PROFILE_BY_EMAIL(user.email));
             if (profileResponse.ok) {
               const profileData = await profileResponse.json();
               
@@ -85,17 +103,62 @@ const StudentDashboard = () => {
                 interests: profileData.user.mentee?.interests ? profileData.user.mentee.interests.split(", ") : [],
                 portfolioLinks: profileData.user.mentee?.portfolioLinks || []
               }));
+
+              // Update stats from profile
+              if (profileData.user.mentee) {
+                setStats({
+                  completedSessions: profileData.user.mentee.completedSessions || 0,
+                  activeMentors: profileData.user.mentee.activeMentors || 0,
+                  hoursLearned: profileData.user.mentee.hoursLearned || 0,
+                  averageRating: profileData.user.mentee.averageRating || 0
+                });
+              }
             }
           } catch (profileError) {
             console.log('No existing profile found, using user registration data');
           }
         }
 
+        // Fetch upcoming sessions (bookings)
+        if (user.id) {
+          try {
+            const bookingsResponse = await fetch(API_ENDPOINTS.BOOKINGS_BY_USER(user.id));
+            if (bookingsResponse.ok) {
+              const bookingsData = await bookingsResponse.json();
+              
+              // Filter for upcoming sessions (confirmed status and future dates)
+              const now = new Date();
+              const upcoming = bookingsData.bookings
+                ?.filter((booking: any) => 
+                  booking.status === 'confirmed' && 
+                  new Date(booking.date) >= now
+                )
+                .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                .slice(0, 5) || [];
+              
+              setUpcomingSessions(upcoming);
+            }
+          } catch (bookingError) {
+            console.log('Error fetching bookings:', bookingError);
+          }
+        }
+
+        // Fetch recommended mentors
+        try {
+          const mentorsResponse = await fetch(`${API_ENDPOINTS.MENTORS}?limit=5`);
+          if (mentorsResponse.ok) {
+            const mentorsData = await mentorsResponse.json();
+            setRecommendedMentors(mentorsData.mentors || []);
+          }
+        } catch (mentorError) {
+          console.log('Error fetching mentors:', mentorError);
+        }
+
       } catch (error) {
-        console.error('Error loading student profile:', error);
+        console.error('Error loading dashboard data:', error);
         toast({
           title: "Error",
-          description: "Failed to load profile data",
+          description: "Failed to load dashboard data",
           variant: "destructive"
         });
       } finally {
@@ -103,8 +166,78 @@ const StudentDashboard = () => {
       }
     };
 
-    loadStudentProfile();
+    loadDashboardData();
   }, [toast]);
+
+  // Load chat requests
+  const loadChatRequests = async () => {
+    if (!currentUser?.email) return;
+    
+    try {
+      const response = await fetch(API_ENDPOINTS.CHAT_REQUEST_ALL(currentUser.email));
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Enrich requests with user details
+        const enrichedRequests = await Promise.all(
+          data.requests.map(async (req: any) => {
+            try {
+              const userEmail = req.receiver === currentUser.email ? req.sender : req.receiver;
+              const userResponse = await fetch(API_ENDPOINTS.PROFILE_BY_EMAIL(userEmail));
+              if (userResponse.ok) {
+                const userData = await userResponse.json();
+                return {
+                  ...req,
+                  otherUser: userData.user
+                };
+              }
+            } catch (error) {
+              console.error('Error fetching user details:', error);
+            }
+            return req;
+          })
+        );
+        
+        setChatRequests(enrichedRequests);
+      }
+    } catch (error) {
+      console.error('Error loading chat requests:', error);
+    }
+  };
+
+  // Load chat requests when user is available
+  useEffect(() => {
+    if (currentUser?.email) {
+      loadChatRequests();
+    }
+  }, [currentUser]);
+
+  // Socket listener for chat request updates
+  useEffect(() => {
+    if (!socket || !currentUser?.email) return;
+
+    const handleChatRequestResponse = (data: any) => {
+      console.log('Chat request response received:', data);
+      
+      // Show notification
+      toast({
+        title: data.status === 'approved' ? 'Request Approved!' : 'Request Declined',
+        description: data.status === 'approved' 
+          ? `${data.mentorName} has approved your chat request. You can now start messaging!`
+          : `${data.mentorName} has declined your chat request.`,
+        variant: data.status === 'approved' ? 'default' : 'destructive'
+      });
+
+      // Reload requests
+      loadChatRequests();
+    };
+
+    socket.on('chat-request-response', handleChatRequestResponse);
+
+    return () => {
+      socket.off('chat-request-response', handleChatRequestResponse);
+    };
+  }, [socket, currentUser, toast]);
 
   // Profile update functions
   const handleSaveProfile = async () => {
@@ -123,7 +256,7 @@ const StudentDashboard = () => {
         }
       };
 
-      const response = await fetch('http://localhost:3000/api/profile', {
+      const response = await fetch(API_ENDPOINTS.PROFILE, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -208,46 +341,21 @@ const StudentDashboard = () => {
     setStudentProfile(prev => ({ ...prev, portfolioLinks: prev.portfolioLinks.filter(l => l !== link) }));
   };
 
-  // Mock data
-  const upcomingSessions = [
-    {
-      id: 1,
-      mentor: "Dr. Sarah Johnson",
-      domain: "Software Engineering",
-      date: "Dec 25, 2024",
-      time: "2:00 PM",
-      avatar: "👩‍💻"
-    },
-    {
-      id: 2,
-      mentor: "Marcus Chen",
-      domain: "Data Science",
-      date: "Dec 27, 2024", 
-      time: "10:00 AM",
-      avatar: "👨‍🔬"
-    }
-  ];
+  // Helper function to format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
 
-  const recommendedMentors = [
-    {
-      id: 1,
-      name: "Elena Rodriguez",
-      domain: "UX Design",
-      rating: 4.9,
-      sessions: 120,
-      avatar: "👩‍🎨",
-      skills: ["Figma", "User Research", "Prototyping"]
-    },
-    {
-      id: 2,
-      name: "David Kim",
-      domain: "Product Management",
-      rating: 4.7,
-      sessions: 85,
-      avatar: "👨‍💼",
-      skills: ["Strategy", "Analytics", "Roadmapping"]
-    }
-  ];
+  // Helper function to get initials for avatar
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   if (isLoading) {
     return (
@@ -517,7 +625,7 @@ const StudentDashboard = () => {
                   <BookOpen className="h-6 w-6 text-primary" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">12</p>
+                  <p className="text-2xl font-bold text-card-foreground">{stats.completedSessions}</p>
                   <p className="text-muted-foreground text-sm">Sessions Completed</p>
                 </div>
               </div>
@@ -531,7 +639,7 @@ const StudentDashboard = () => {
                   <MessageCircle className="h-6 w-6 text-secondary" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">5</p>
+                  <p className="text-2xl font-bold text-card-foreground">{stats.activeMentors}</p>
                   <p className="text-muted-foreground text-sm">Active Mentors</p>
                 </div>
               </div>
@@ -545,7 +653,7 @@ const StudentDashboard = () => {
                   <Clock className="h-6 w-6 text-primary" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">24</p>
+                  <p className="text-2xl font-bold text-card-foreground">{stats.hoursLearned}</p>
                   <p className="text-muted-foreground text-sm">Hours Learned</p>
                 </div>
               </div>
@@ -559,7 +667,7 @@ const StudentDashboard = () => {
                   <Star className="h-6 w-6 text-yellow-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">4.8</p>
+                  <p className="text-2xl font-bold text-card-foreground">{stats.averageRating.toFixed(1)}</p>
                   <p className="text-muted-foreground text-sm">Avg Rating</p>
                 </div>
               </div>
@@ -652,45 +760,222 @@ const StudentDashboard = () => {
           </Card>
         </div>
 
+        {/* Chat Requests Section */}
+        {chatRequests.length > 0 && (
+          <Card className="mentor-card">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <MessageSquare className="h-5 w-5 mr-2 text-primary" />
+                Chat Requests
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {chatRequests
+                  .filter(req => req.sender === currentUser?.email)
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .slice(0, 5)
+                  .map((request) => (
+                    <div 
+                      key={request._id} 
+                      className={`p-4 rounded-lg border-l-4 ${
+                        request.status === 'approved' 
+                          ? 'border-l-green-500 bg-green-50 dark:bg-green-950/20' 
+                          : request.status === 'declined'
+                          ? 'border-l-red-500 bg-red-50 dark:bg-red-950/20'
+                          : 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-3 flex-1">
+                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold flex-shrink-0">
+                            {request.otherUser?.name ? getInitials(request.otherUser.name) : 'M'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-medium text-card-foreground">
+                                {request.otherUser?.name || 'Mentor'}
+                              </p>
+                              <Badge 
+                                variant={
+                                  request.status === 'approved' 
+                                    ? 'default' 
+                                    : request.status === 'declined'
+                                    ? 'destructive'
+                                    : 'secondary'
+                                }
+                                className="text-xs"
+                              >
+                                {request.status === 'approved' && <Check className="h-3 w-3 mr-1" />}
+                                {request.status === 'declined' && <X className="h-3 w-3 mr-1" />}
+                                {request.status === 'pending' && <AlertCircle className="h-3 w-3 mr-1" />}
+                                {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                              {request.message}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Sent {new Date(request.createdAt).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 ml-3">
+                          {request.status === 'approved' && (
+                            <Link to={`/chat?user=${encodeURIComponent(request.receiver)}`}>
+                              <Button size="sm" variant="hero">
+                                <MessageCircle className="h-4 w-4 mr-1" />
+                                Open Chat
+                              </Button>
+                            </Link>
+                          )}
+                          {request.status === 'declined' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                // Could implement resend functionality here
+                                toast({
+                                  title: "Feature Coming Soon",
+                                  description: "Request resend feature will be available soon."
+                                });
+                              }}
+                            >
+                              Resend
+                            </Button>
+                          )}
+                          {request.status === 'pending' && (
+                            <Badge variant="secondary" className="text-xs">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Waiting
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                
+                {chatRequests.filter(req => req.sender === currentUser?.email).length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>No chat requests sent yet</p>
+                    <Link to="/mentors">
+                      <Button variant="hero" className="mt-4">Find Mentors</Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Upcoming Sessions */}
+          {/* Upcoming Sessions & Available Mentors */}
           <div>
             <Card className="mentor-card">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center">
                     <Calendar className="h-5 w-5 mr-2 text-primary" />
-                    Upcoming Sessions
+                    My Bookings
                   </CardTitle>
-                  <Link to="/sessions">
+                  <Link to="/booking">
                     <Button variant="ghost" size="sm">View All</Button>
                   </Link>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {upcomingSessions.map(session => (
-                  <div key={session.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-2xl">{session.avatar}</div>
-                      <div>
-                        <p className="font-medium text-card-foreground">{session.mentor}</p>
-                        <p className="text-sm text-muted-foreground">{session.domain}</p>
+                {/* Always show available mentors section */}
+                <div>
+                  {upcomingSessions.length > 0 && (
+                    <>
+                      <h3 className="text-sm font-semibold mb-3 text-muted-foreground">Upcoming Sessions</h3>
+                      <div className="space-y-3 mb-4">
+                        {upcomingSessions.map(session => (
+                          <div key={session._id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                                {getInitials(session.mentorName)}
+                              </div>
+                              <div>
+                                <p className="font-medium text-card-foreground">{session.mentorName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatDate(session.date)} at {session.time}
+                                </p>
+                                <Badge variant="secondary" className="text-xs mt-1">
+                                  {session.sessionType}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
+                      <div className="border-t pt-4"></div>
+                    </>
+                  )}
+                  
+                  {upcomingSessions.length === 0 && (
+                    <div className="text-center py-3 mb-4 bg-muted/30 rounded-lg">
+                      <p className="text-muted-foreground text-sm mb-1">No upcoming sessions</p>
+                      <p className="text-xs text-muted-foreground">Book a session with available mentors below</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-card-foreground">{session.date}</p>
-                      <p className="text-sm text-muted-foreground">{session.time}</p>
-                    </div>
+                  )}
+                  
+                  {/* Always show available mentors */}
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3 text-muted-foreground flex items-center">
+                      <Star className="h-4 w-4 mr-1 text-green-600" />
+                      Available Mentors for Booking
+                    </h3>
+                    {recommendedMentors.length > 0 ? (
+                      <div className="space-y-2">
+                        {recommendedMentors.slice(0, 3).map(mentor => (
+                          <div key={mentor._id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800 hover:shadow-md transition-shadow">
+                            <div className="flex items-center space-x-3 flex-1">
+                              <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center text-green-600 dark:text-green-400 font-semibold">
+                                {getInitials(mentor.name)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-card-foreground">{mentor.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {mentor.mentor?.domain || mentor.company || 'Mentor'}
+                                </p>
+                                {mentor.mentor?.averageRating > 0 && (
+                                  <div className="flex items-center space-x-1 text-xs mt-1">
+                                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                    <span>{mentor.mentor.averageRating.toFixed(1)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <Link to={`/mentors?mentor=${mentor._id}`}>
+                              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
+                                Book Session
+                              </Button>
+                            </Link>
+                          </div>
+                        ))}
+                        <Link to="/mentors">
+                          <Button variant="outline" className="w-full mt-2">
+                            View All Mentors
+                          </Button>
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 bg-muted/30 rounded-lg">
+                        <p className="text-muted-foreground text-sm mb-3">No mentors available</p>
+                        <Link to="/mentors">
+                          <Button variant="hero">Browse Mentors</Button>
+                        </Link>
+                      </div>
+                    )}
                   </div>
-                ))}
-                {upcomingSessions.length === 0 && (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">No upcoming sessions</p>
-                    <Link to="/mentors">
-                      <Button variant="hero" className="mt-4">Book a Session</Button>
-                    </Link>
-                  </div>
-                )}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -711,32 +996,51 @@ const StudentDashboard = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {recommendedMentors.map(mentor => (
-                  <div key={mentor.id} className="p-4 bg-muted/50 rounded-lg">
+                  <div key={mentor._id} className="p-4 bg-muted/50 rounded-lg">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-3">
-                        <div className="text-2xl">{mentor.avatar}</div>
+                        <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary font-semibold">
+                          {getInitials(mentor.name)}
+                        </div>
                         <div>
                           <p className="font-medium text-card-foreground">{mentor.name}</p>
-                          <p className="text-sm text-muted-foreground">{mentor.domain}</p>
+                          <p className="text-sm text-muted-foreground">{mentor.company || mentor.mentor?.domain || 'Mentor'}</p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-1 text-sm">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span>{mentor.rating}</span>
-                      </div>
+                      {mentor.mentor?.averageRating > 0 && (
+                        <div className="flex items-center space-x-1 text-sm">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span>{mentor.mentor.averageRating.toFixed(1)}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-2 mb-3">
-                      {mentor.skills.map(skill => (
-                        <Badge key={skill} variant="outline" className="text-xs">
+                      {(mentor.skills || []).slice(0, 3).map((skill: string, index: number) => (
+                        <Badge key={index} variant="outline" className="text-xs">
                           {skill}
                         </Badge>
                       ))}
+                      {(mentor.skills || []).length === 0 && (
+                        <Badge variant="outline" className="text-xs">
+                          {mentor.mentor?.experience || 'Experienced'}
+                        </Badge>
+                      )}
                     </div>
-                    <Button variant="outline" className="w-full">
-                      Request Session
-                    </Button>
+                    <Link to={`/mentors?mentor=${mentor._id}`}>
+                      <Button variant="outline" className="w-full">
+                        View Profile
+                      </Button>
+                    </Link>
                   </div>
                 ))}
+                {recommendedMentors.length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No mentors available</p>
+                    <Link to="/mentors">
+                      <Button variant="hero" className="mt-4">Browse Mentors</Button>
+                    </Link>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

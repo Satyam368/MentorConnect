@@ -34,104 +34,11 @@ const FileSharing = () => {
   const [sortBy, setSortBy] = useState("date");
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
 
-  // Mock shared files data
-  const [sharedFiles] = useState([
-    {
-      id: "1",
-      name: "React Development Guide.pdf",
-      type: "pdf",
-      size: "2.5 MB",
-      uploadedBy: "Dr. Sarah Johnson",
-      uploadedAt: "Dec 22, 2024",
-      sharedWith: "Alex Thompson",
-      category: "Learning Material",
-      description: "Comprehensive guide to React development patterns and best practices",
-      downloads: 45,
-      isPrivate: false,
-      avatar: "👩‍💻"
-    },
-    {
-      id: "2",
-      name: "System Design Interview Questions.docx",
-      type: "document",
-      size: "1.8 MB",
-      uploadedBy: "Marcus Chen",
-      uploadedAt: "Dec 20, 2024",
-      sharedWith: "All Students",
-      category: "Interview Prep",
-      description: "Collection of system design questions with detailed solutions",
-      downloads: 78,
-      isPrivate: false,
-      avatar: "👨‍🔬"
-    },
-    {
-      id: "3",
-      name: "UX Research Template.sketch",
-      type: "design",
-      size: "5.2 MB",
-      uploadedBy: "Elena Rodriguez",
-      uploadedAt: "Dec 18, 2024",
-      sharedWith: "UX Design Group",
-      category: "Templates",
-      description: "Research documentation template with user persona templates",
-      downloads: 23,
-      isPrivate: true,
-      avatar: "👩‍🎨"
-    },
-    {
-      id: "4",
-      name: "Project Screenshots.zip",
-      type: "archive",
-      size: "12.5 MB",
-      uploadedBy: "Alex Thompson",
-      uploadedAt: "Dec 15, 2024",
-      sharedWith: "Dr. Sarah Johnson",
-      category: "Project Files",
-      description: "Screenshots and mockups for the e-commerce project review",
-      downloads: 3,
-      isPrivate: true,
-      avatar: "👨‍💻"
-    },
-    {
-      id: "5",
-      name: "Database Schema Diagram.png",
-      type: "image",
-      size: "890 KB",
-      uploadedBy: "Marcus Chen",
-      uploadedAt: "Dec 12, 2024",
-      sharedWith: "All Students",
-      category: "Diagrams",
-      description: "Visual representation of the e-commerce database structure",
-      downloads: 67,
-      isPrivate: false,
-      avatar: "👨‍🔬"
-    }
-  ]);
+  // Shared files data
+  const [sharedFiles] = useState<any[]>([]);
 
-  const [linkShares] = useState([
-    {
-      id: "1",
-      title: "Advanced React Patterns Course",
-      url: "https://reactpatterns.dev/advanced-course",
-      description: "Interactive course covering render props, HOCs, and compound components",
-      sharedBy: "Dr. Sarah Johnson",
-      sharedAt: "Dec 21, 2024",
-      category: "Course",
-      clicks: 156,
-      avatar: "👩‍💻"
-    },
-    {
-      id: "2",
-      title: "System Design GitHub Repository",
-      url: "https://github.com/systemdesign/examples",
-      description: "Collection of system design examples with code implementations",
-      sharedBy: "Marcus Chen",
-      sharedAt: "Dec 19, 2024",
-      category: "Repository",
-      clicks: 89,
-      avatar: "👨‍🔬"
-    }
-  ]);
+  // Shared links data
+  const [linkShares] = useState<any[]>([]);
 
   const getFileIcon = (type: string) => {
     switch (type) {
@@ -217,7 +124,7 @@ const FileSharing = () => {
                   <File className="h-6 w-6 text-primary" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">24</p>
+                  <p className="text-2xl font-bold text-card-foreground">{sharedFiles.length}</p>
                   <p className="text-muted-foreground text-sm">Total Files</p>
                 </div>
               </div>
@@ -231,7 +138,7 @@ const FileSharing = () => {
                   <Download className="h-6 w-6 text-secondary" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">156</p>
+                  <p className="text-2xl font-bold text-card-foreground">0</p>
                   <p className="text-muted-foreground text-sm">Downloads</p>
                 </div>
               </div>
@@ -245,7 +152,7 @@ const FileSharing = () => {
                   <Share2 className="h-6 w-6 text-green-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">8</p>
+                  <p className="text-2xl font-bold text-card-foreground">{linkShares.length}</p>
                   <p className="text-muted-foreground text-sm">Shared Links</p>
                 </div>
               </div>
@@ -259,7 +166,7 @@ const FileSharing = () => {
                   <Folder className="h-6 w-6 text-purple-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">45.8</p>
+                  <p className="text-2xl font-bold text-card-foreground">0</p>
                   <p className="text-muted-foreground text-sm">MB Used</p>
                 </div>
               </div>

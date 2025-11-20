@@ -10,12 +10,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calendar } from "@/components/ui/calendar";
 import { User, Mail, Phone, MapPin, Clock, Plus, X, Camera, Languages, Award, Briefcase, Target as TargetIcon, BookOpen, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_ENDPOINTS, API_BASE_URL } from "@/lib/api";
 
 const Profile = () => {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPicture, setIsUploadingPicture] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   
   // Dynamic user data - loaded from backend
@@ -26,6 +28,7 @@ const Profile = () => {
     location: "",
     role: "student", // default role
     bio: "",
+    profilePicture: "",
     skills: [] as string[],
     languages: [] as string[],
     experience: "",
@@ -59,20 +62,22 @@ const Profile = () => {
         }
 
         const user = JSON.parse(userData);
+        console.log('Current authUser:', user); // Debug log
         
         // Set basic user info from registration
         setProfile(prev => ({
           ...prev,
           name: user.name || "",
           email: user.email || "",
-          role: user.role || "student"
+          role: user.role || "student",
+          profilePicture: user.profilePicture || ""
         }));
 
         // Try to fetch existing profile data from backend
         if (user.email) {
           try {
             console.log('Fetching profile for email:', user.email);
-            const profileResponse = await fetch(`http://localhost:3000/api/profile/${encodeURIComponent(user.email)}`);
+            const profileResponse = await fetch(API_ENDPOINTS.PROFILE_BY_EMAIL(user.email));
             console.log('Profile response status:', profileResponse.status);
             
             if (profileResponse.ok) {
@@ -88,6 +93,15 @@ const Profile = () => {
                 email: user.email || profileData.user.email || "",
                 role: user.role || profileData.user.role || "student"
               }));
+
+              // Load role-specific extras if available
+              if (profileData.user.mentorExtras) {
+                setMentorExtras(profileData.user.mentorExtras);
+              }
+              if (profileData.user.menteeExtras) {
+                setMenteeExtras(profileData.user.menteeExtras);
+              }
+
               console.log('Profile loaded successfully');
             } else {
               const errorText = await profileResponse.text();
@@ -127,19 +141,140 @@ const Profile = () => {
   const [newInterest, setNewInterest] = useState("");
   const [newPortfolioLink, setNewPortfolioLink] = useState("");
 
-  // Role-specific state (client-side only)
+  // Handle profile picture upload
+  const handleProfilePictureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid File",
+        description: "Please upload an image file (JPEG, PNG, GIF, WEBP)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File Too Large",
+        description: "Profile picture must be less than 5MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploadingPicture(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('profilePicture', file);
+      formData.append('email', profile.email);
+
+      const response = await fetch(API_ENDPOINTS.PROFILE_UPLOAD_PICTURE, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setProfile(prev => ({ ...prev, profilePicture: data.profilePicture }));
+        
+        // Update localStorage so navbar shows the new picture immediately
+        const authUser = localStorage.getItem('authUser');
+        if (authUser) {
+          const userData = JSON.parse(authUser);
+          userData.profilePicture = data.profilePicture;
+          localStorage.setItem('authUser', JSON.stringify(userData));
+          
+          // Dispatch custom event to notify Navigation component
+          window.dispatchEvent(new Event('profileUpdated'));
+        }
+        
+        toast({
+          title: "Success",
+          description: "Profile picture updated successfully"
+        });
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Upload failed');
+      }
+    } catch (error: any) {
+      console.error('Error uploading profile picture:', error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload profile picture",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingPicture(false);
+    }
+  };
+
+  // Handle profile picture deletion
+  const handleDeleteProfilePicture = async () => {
+    if (!profile.profilePicture) return;
+
+    setIsUploadingPicture(true);
+
+    try {
+      const response = await fetch(API_ENDPOINTS.PROFILE_DELETE_PICTURE, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: profile.email })
+      });
+
+      if (response.ok) {
+        setProfile(prev => ({ ...prev, profilePicture: "" }));
+        
+        // Update localStorage to remove the picture from navbar
+        const authUser = localStorage.getItem('authUser');
+        if (authUser) {
+          const userData = JSON.parse(authUser);
+          userData.profilePicture = "";
+          localStorage.setItem('authUser', JSON.stringify(userData));
+          
+          // Dispatch custom event to notify Navigation component
+          window.dispatchEvent(new Event('profileUpdated'));
+        }
+        
+        toast({
+          title: "Success",
+          description: "Profile picture deleted successfully"
+        });
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Delete failed');
+      }
+    } catch (error: any) {
+      console.error('Error deleting profile picture:', error);
+      toast({
+        title: "Delete Failed",
+        description: error.message || "Failed to delete profile picture",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingPicture(false);
+    }
+  };
+
+  // Role-specific state (initially empty, loaded from backend)
   const [mentorExtras, setMentorExtras] = useState({
-    services: ["Career Guidance", "Interview Prep", "Code Reviews"],
-    industries: ["FinTech", "E-commerce"],
-    formats: ["Video Call", "Messaging", "Code Pairing"],
+    services: [] as string[],
+    industries: [] as string[],
+    formats: [] as string[],
   });
   const [menteeExtras, setMenteeExtras] = useState({
-    currentLevel: "Junior",
-    targetRole: "Full-Stack Developer",
-    learningStyle: "Hands-on Projects",
-    goals: ["Master React", "Build Portfolio"],
-    interests: ["Web Dev", "System Design"],
-    portfolioLinks: ["https://github.com/username", "https://portfolio.example.com"],
+    currentLevel: "",
+    targetRole: "",
+    learningStyle: "",
+    goals: [] as string[],
+    interests: [] as string[],
+    portfolioLinks: [] as string[],
   });
 
   const handleSave = async () => {
@@ -167,7 +302,7 @@ const Profile = () => {
         menteeExtras: profile.role === "student" ? menteeExtras : undefined
       };
 
-      const response = await fetch('http://localhost:3000/api/profile', {
+      const response = await fetch(API_ENDPOINTS.PROFILE, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -375,21 +510,43 @@ const Profile = () => {
               <CardHeader className="text-center">
                 <div className="relative inline-block">
                   <Avatar className="w-32 h-32 mx-auto">
-                    <AvatarImage src="/placeholder-avatar.jpg" />
+                    <AvatarImage src={profile.profilePicture ? `${API_BASE_URL}${profile.profilePicture}` : undefined} />
                     <AvatarFallback className="text-2xl">
                       {profile.name.split(' ').map(n => n[0]).join('')}
                     </AvatarFallback>
                   </Avatar>
-                  {isEditing && (
+                  <div className="absolute bottom-0 right-0">
+                    <input
+                      type="file"
+                      id="profile-picture-upload"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleProfilePictureUpload}
+                      disabled={isUploadingPicture}
+                    />
                     <Button
                       size="icon"
-                      className="absolute bottom-0 right-0 rounded-full"
+                      className="rounded-full"
                       variant="secondary"
+                      onClick={() => document.getElementById('profile-picture-upload')?.click()}
+                      disabled={isUploadingPicture}
                     >
                       <Camera className="h-4 w-4" />
                     </Button>
-                  )}
+                  </div>
                 </div>
+                {profile.profilePicture && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 text-xs text-muted-foreground"
+                    onClick={handleDeleteProfilePicture}
+                    disabled={isUploadingPicture}
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Remove Photo
+                  </Button>
+                )}
                 <CardTitle className="mt-4">{profile.name}</CardTitle>
                 <Badge variant="secondary" className="mt-2">
                   {profile.role === "mentor" ? "Mentor" : "Mentee"}
@@ -665,68 +822,70 @@ const Profile = () => {
             </Card>
 
             {/* Availability */}
-            <Card className="mentor-card">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Clock className="h-5 w-5 mr-2" /> Availability
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  {profile.availability.length > 0 ? (
-                    <div className="space-y-2">
-                      {profile.availability.map((slot, idx) => (
-                        <div key={`${slot}-${idx}`} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                          <span className="text-sm">{slot}</span>
-                          {isEditing && (
-                            <Button variant="ghost" size="sm" onClick={() => removeAvailability(slot)}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No availability set</p>
-                  )}
-                </div>
-
-                {isEditing && (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
-                    <div className="space-y-1">
-                      <Label>Day</Label>
-                      <Select value={newAvailabilityDay} onValueChange={setNewAvailabilityDay}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Monday">Monday</SelectItem>
-                          <SelectItem value="Tuesday">Tuesday</SelectItem>
-                          <SelectItem value="Wednesday">Wednesday</SelectItem>
-                          <SelectItem value="Thursday">Thursday</SelectItem>
-                          <SelectItem value="Friday">Friday</SelectItem>
-                          <SelectItem value="Saturday">Saturday</SelectItem>
-                          <SelectItem value="Sunday">Sunday</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Start</Label>
-                      <Input type="time" value={newAvailabilityStart} onChange={(e) => setNewAvailabilityStart(e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>End</Label>
-                      <Input type="time" value={newAvailabilityEnd} onChange={(e) => setNewAvailabilityEnd(e.target.value)} />
-                    </div>
-                    <div>
-                      <Button onClick={addAvailability} className="w-full">
-                        <Plus className="h-4 w-4 mr-1" /> Add
-                      </Button>
-                    </div>
+            {profile.role === "mentor" && (
+              <Card className="mentor-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Clock className="h-5 w-5 mr-2" /> Availability
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    {profile.availability.length > 0 ? (
+                      <div className="space-y-2">
+                        {profile.availability.map((slot, idx) => (
+                          <div key={`${slot}-${idx}`} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                            <span className="text-sm">{slot}</span>
+                            {isEditing && (
+                              <Button variant="ghost" size="sm" onClick={() => removeAvailability(slot)}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No availability set</p>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+
+                  {isEditing && (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+                      <div className="space-y-1">
+                        <Label>Day</Label>
+                        <Select value={newAvailabilityDay} onValueChange={setNewAvailabilityDay}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Monday">Monday</SelectItem>
+                            <SelectItem value="Tuesday">Tuesday</SelectItem>
+                            <SelectItem value="Wednesday">Wednesday</SelectItem>
+                            <SelectItem value="Thursday">Thursday</SelectItem>
+                            <SelectItem value="Friday">Friday</SelectItem>
+                            <SelectItem value="Saturday">Saturday</SelectItem>
+                            <SelectItem value="Sunday">Sunday</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Start</Label>
+                        <Input type="time" value={newAvailabilityStart} onChange={(e) => setNewAvailabilityStart(e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>End</Label>
+                        <Input type="time" value={newAvailabilityEnd} onChange={(e) => setNewAvailabilityEnd(e.target.value)} />
+                      </div>
+                      <div>
+                        <Button onClick={addAvailability} className="w-full">
+                          <Plus className="h-4 w-4 mr-1" /> Add
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Languages */}
             <Card className="mentor-card">
@@ -798,130 +957,94 @@ const Profile = () => {
 
             {/* Mentee: Learning Profile */}
             {profile.role !== "mentor" && (
-              <>
-                <Card className="mentor-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <TargetIcon className="h-5 w-5 mr-2" /> Learning Profile
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="mentor-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <TargetIcon className="h-5 w-5 mr-2" /> Learning Goals
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label>Current Level</Label>
+                      <Label htmlFor="currentLevel">Current Level</Label>
                       <Select value={menteeExtras.currentLevel} disabled={!isEditing} onValueChange={(v) => setMenteeExtras(prev => ({ ...prev, currentLevel: v }))}>
-                        <SelectTrigger>
-                          <SelectValue />
+                        <SelectTrigger id="currentLevel">
+                          <SelectValue placeholder="Select your level" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Beginner">Beginner</SelectItem>
-                          <SelectItem value="Junior">Junior</SelectItem>
-                          <SelectItem value="Mid">Mid</SelectItem>
-                          <SelectItem value="Senior">Senior</SelectItem>
+                          <SelectItem value="Intermediate">Intermediate</SelectItem>
+                          <SelectItem value="Advanced">Advanced</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label>Target Role</Label>
-                      <Input value={menteeExtras.targetRole} disabled={!isEditing} onChange={(e) => setMenteeExtras(prev => ({ ...prev, targetRole: e.target.value }))} />
+                      <Label htmlFor="targetRole">Target Role</Label>
+                      <Input 
+                        id="targetRole"
+                        placeholder="e.g. Full Stack Developer"
+                        value={menteeExtras.targetRole} 
+                        disabled={!isEditing} 
+                        onChange={(e) => setMenteeExtras(prev => ({ ...prev, targetRole: e.target.value }))} 
+                      />
                     </div>
-                    <div className="md:col-span-2">
-                      <Label>Preferred Learning Style</Label>
-                      <Select value={menteeExtras.learningStyle} disabled={!isEditing} onValueChange={(v) => setMenteeExtras(prev => ({ ...prev, learningStyle: v }))}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Hands-on Projects">Hands-on Projects</SelectItem>
-                          <SelectItem value="Guided Tutorials">Guided Tutorials</SelectItem>
-                          <SelectItem value="Reading & Notes">Reading & Notes</SelectItem>
-                          <SelectItem value="Pair Programming">Pair Programming</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="mentor-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <BookOpen className="h-5 w-5 mr-2" /> Goals & Interests
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div>
-                      <Label>Learning Goals</Label>
-                      <div className="flex flex-wrap gap-2 mb-3 mt-2">
-                        {menteeExtras.goals.map((g) => (
-                          <Badge key={g} variant="secondary" className="text-sm">
-                            {g}
-                            {isEditing && (
-                              <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0" onClick={() => removeGoal(g)}>
-                                <X className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </Badge>
-                        ))}
-                      </div>
-                      {isEditing && (
-                        <div className="flex space-x-2">
-                          <Input placeholder="Add goal" value={newGoal} onChange={(e) => setNewGoal(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addGoal()} />
-                          <Button onClick={addGoal} size="icon"><Plus className="h-4 w-4" /></Button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <Label>Interests</Label>
-                      <div className="flex flex-wrap gap-2 mb-3 mt-2">
-                        {menteeExtras.interests.map((i) => (
-                          <Badge key={i} variant="outline" className="text-sm">
-                            {i}
-                            {isEditing && (
-                              <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0" onClick={() => removeInterest(i)}>
-                                <X className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </Badge>
-                        ))}
-                      </div>
-                      {isEditing && (
-                        <div className="flex space-x-2">
-                          <Input placeholder="Add interest" value={newInterest} onChange={(e) => setNewInterest(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addInterest()} />
-                          <Button onClick={addInterest} size="icon"><Plus className="h-4 w-4" /></Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="mentor-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <Link2 className="h-5 w-5 mr-2" /> Portfolio Links
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 mb-4">
-                      {menteeExtras.portfolioLinks.map((l) => (
-                        <div key={l} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                          <span className="truncate mr-2">{l}</span>
+                  </div>
+                  
+                  <div>
+                    <Label>Learning Goals</Label>
+                    <div className="flex flex-wrap gap-2 mb-3 mt-2">
+                      {menteeExtras.goals.map((g) => (
+                        <Badge key={g} variant="secondary" className="text-sm">
+                          {g}
                           {isEditing && (
-                            <Button variant="ghost" size="sm" onClick={() => removePortfolioLink(l)}>
-                              <X className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0" onClick={() => removeGoal(g)}>
+                              <X className="h-3 w-3" />
                             </Button>
                           )}
-                        </div>
+                        </Badge>
                       ))}
                     </div>
                     {isEditing && (
                       <div className="flex space-x-2">
-                        <Input placeholder="https://..." value={newPortfolioLink} onChange={(e) => setNewPortfolioLink(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addPortfolioLink()} />
-                        <Button onClick={addPortfolioLink} size="icon"><Plus className="h-4 w-4" /></Button>
+                        <Input 
+                          placeholder="Add learning goal (e.g. Learn React)" 
+                          value={newGoal} 
+                          onChange={(e) => setNewGoal(e.target.value)} 
+                          onKeyPress={(e) => e.key === 'Enter' && addGoal()} 
+                        />
+                        <Button onClick={addGoal} size="icon"><Plus className="h-4 w-4" /></Button>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-              </>
+                  </div>
+
+                  <div>
+                    <Label>Interests</Label>
+                    <div className="flex flex-wrap gap-2 mb-3 mt-2">
+                      {menteeExtras.interests.map((i) => (
+                        <Badge key={i} variant="outline" className="text-sm">
+                          {i}
+                          {isEditing && (
+                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0" onClick={() => removeInterest(i)}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </Badge>
+                      ))}
+                    </div>
+                    {isEditing && (
+                      <div className="flex space-x-2">
+                        <Input 
+                          placeholder="Add interest (e.g. Web Development)" 
+                          value={newInterest} 
+                          onChange={(e) => setNewInterest(e.target.value)} 
+                          onKeyPress={(e) => e.key === 'Enter' && addInterest()} 
+                        />
+                        <Button onClick={addInterest} size="icon"><Plus className="h-4 w-4" /></Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>

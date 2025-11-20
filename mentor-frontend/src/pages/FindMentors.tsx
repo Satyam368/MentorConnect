@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,65 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Search, MapPin, Star, Calendar, MessageCircle } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-
-// Mock mentor data
-const mentors = [
-  {
-    id: 1,
-    name: "Dr. Sarah Johnson",
-    domain: "Software Engineering",
-    experience: "8 years",
-    location: "San Francisco, CA",
-    rating: 4.9,
-    sessions: 150,
-    availability: "Available",
-    skills: ["React", "Node.js", "System Design", "Leadership"],
-    avatar: "👩‍💻",
-    bio: "Senior Software Engineer at Google with expertise in full-stack development and team leadership."
-  },
-  {
-    id: 2,
-    name: "Marcus Chen",
-    domain: "Data Science",
-    experience: "6 years",
-    location: "New York, NY",
-    rating: 4.8,
-    sessions: 98,
-    availability: "Available",
-    skills: ["Python", "Machine Learning", "Statistics", "SQL"],
-    avatar: "👨‍🔬",
-    bio: "Data Scientist at Netflix, passionate about AI and helping students break into tech."
-  },
-  {
-    id: 3,
-    name: "Elena Rodriguez",
-    domain: "UX Design",
-    experience: "5 years",
-    location: "Austin, TX",
-    rating: 4.9,
-    sessions: 120,
-    availability: "Busy",
-    skills: ["Figma", "User Research", "Prototyping", "Design Systems"],
-    avatar: "👩‍🎨",
-    bio: "Senior UX Designer at Airbnb, focused on creating intuitive user experiences."
-  },
-  {
-    id: 4,
-    name: "David Kim",
-    domain: "Product Management",
-    experience: "7 years",
-    location: "Seattle, WA",
-    rating: 4.7,
-    sessions: 85,
-    availability: "Available",
-    skills: ["Strategy", "Analytics", "Roadmapping", "Leadership"],
-    avatar: "👨‍💼",
-    bio: "Product Manager at Microsoft Azure, helping build products used by millions."
-  }
-];
+import { API_ENDPOINTS } from "@/lib/api";
 
 const FindMentors = () => {
   const { toast } = useToast();
@@ -74,28 +17,73 @@ const FindMentors = () => {
   const [selectedDomain, setSelectedDomain] = useState("all");
   const [selectedLocation, setSelectedLocation] = useState("all");
   const [selectedLanguage, setSelectedLanguage] = useState("all");
+  const [mentors, setMentors] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [isRequestOpen, setIsRequestOpen] = useState(false);
-  const [selectedMentor, setSelectedMentor] = useState<any>(null);
-  const [requestSessionType, setRequestSessionType] = useState("");
-  const [requestDuration, setRequestDuration] = useState("");
-  const [requestTime, setRequestTime] = useState("");
-  const [requestNotes, setRequestNotes] = useState("");
+  // Load mentors from API
+  useEffect(() => {
+    const fetchMentors = async () => {
+      try {
+        const response = await fetch(API_ENDPOINTS.MENTORS);
+        if (response.ok) {
+          const data = await response.json();
+          setMentors(data.mentors || []);
+        } else {
+          throw new Error('Failed to fetch mentors');
+        }
+      } catch (error) {
+        console.error('Error fetching mentors:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load mentors. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const domains = ["all", "Software Engineering", "Data Science", "UX Design", "Product Management"];
-  const locations = ["all", "San Francisco, CA", "New York, NY", "Austin, TX", "Seattle, WA"];
+    fetchMentors();
+  }, [toast]);
+
+  // Extract unique domains and locations from mentors
+  const domains = ["all", ...new Set(mentors.map(m => m.company || m.mentor?.domain).filter(Boolean))];
+  const locations = ["all", ...new Set(mentors.map(m => m.location).filter(Boolean))];
   const languages = ["all", "English", "Spanish", "French", "Mandarin"];
 
   const filteredMentors = mentors.filter(mentor => {
-    const matchesSearch = mentor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         mentor.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         mentor.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesDomain = selectedDomain === "all" || mentor.domain === selectedDomain;
+    const matchesSearch = mentor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (mentor.company || mentor.mentor?.domain || '')?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (mentor.skills || []).some((skill: string) => skill.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesDomain = selectedDomain === "all" || mentor.company === selectedDomain || mentor.mentor?.domain === selectedDomain;
     const matchesLocation = selectedLocation === "all" || mentor.location === selectedLocation;
-    const matchesLanguage = selectedLanguage === "all" || ["English", "Spanish", "French"].includes(selectedLanguage);
+    const matchesLanguage = selectedLanguage === "all" || (mentor.languages || []).includes(selectedLanguage);
     
     return matchesSearch && matchesDomain && matchesLocation && matchesLanguage;
   });
+
+  // Helper function to get initials
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex-1">
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading mentors...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1">
@@ -167,59 +155,63 @@ const FindMentors = () => {
         {/* Results */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredMentors.map(mentor => (
-            <Card key={mentor.id} className="mentor-card">
+            <Card key={mentor._id} className="mentor-card">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="text-3xl">{mentor.avatar}</div>
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                      {getInitials(mentor.name)}
+                    </div>
                     <div>
                       <CardTitle className="text-lg">{mentor.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground">{mentor.domain}</p>
+                      <p className="text-sm text-muted-foreground">{mentor.company || mentor.mentor?.domain || 'Mentor'}</p>
                     </div>
                   </div>
                   <Badge 
-                    variant={mentor.availability === "Available" ? "default" : "secondary"}
-                    className={mentor.availability === "Available" ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}
+                    variant={mentor.isActive ? "default" : "secondary"}
+                    className={mentor.isActive ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}
                   >
-                    {mentor.availability}
+                    {mentor.isActive ? "Available" : "Busy"}
                   </Badge>
                 </div>
               </CardHeader>
               
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  {mentor.bio}
+                  {mentor.bio || 'Experienced professional ready to help you grow.'}
                 </p>
 
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
                   <div className="flex items-center space-x-1">
                     <MapPin className="h-4 w-4" />
-                    <span>{mentor.location}</span>
+                    <span>{mentor.location || 'Remote'}</span>
                   </div>
-                  <div className="flex items-center space-x-1">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span>{mentor.rating}</span>
-                  </div>
+                  {mentor.mentor?.averageRating > 0 && (
+                    <div className="flex items-center space-x-1">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span>{mentor.mentor.averageRating.toFixed(1)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
                   <div className="flex items-center space-x-1">
                     <Calendar className="h-4 w-4" />
-                    <span>{mentor.experience} experience</span>
+                    <span>{mentor.mentor?.experience || 'Experienced'}</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <MessageCircle className="h-4 w-4" />
-                    <span>{mentor.sessions} sessions</span>
+                    <span>{mentor.mentor?.totalSessions || 0} sessions</span>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {mentor.skills.slice(0, 3).map(skill => (
-                    <Badge key={skill} variant="outline" className="text-xs">
+                  {(mentor.skills || []).slice(0, 3).map((skill: string, index: number) => (
+                    <Badge key={index} variant="outline" className="text-xs">
                       {skill}
                     </Badge>
                   ))}
-                  {mentor.skills.length > 3 && (
+                  {(mentor.skills || []).length > 3 && (
                     <Badge variant="outline" className="text-xs">
                       +{mentor.skills.length - 3} more
                     </Badge>
@@ -230,19 +222,85 @@ const FindMentors = () => {
                   <Button 
                     variant="hero" 
                     className="flex-1"
-                    disabled={mentor.availability !== "Available"}
                     onClick={() => {
-                      setSelectedMentor(mentor);
-                      setIsRequestOpen(true);
+                      const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
+                      if (!userData) {
+                        toast({
+                          title: "Error",
+                          description: "Please login to request a session",
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+                      // Navigate to booking page with mentor ID
+                      navigate(`/booking?mentorId=${mentor._id}`);
                     }}
                   >
                     Request Session
                   </Button>
-                  <Link to={`/chat/${mentor.id}`}>
-                    <Button variant="outline" size="icon">
-                      <MessageCircle className="h-4 w-4" />
-                    </Button>
-                  </Link>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={async () => {
+                      const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
+                      if (!userData) {
+                        toast({
+                          title: "Error",
+                          description: "Please login to send messages",
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+                      
+                      const user = JSON.parse(userData);
+                      
+                      // Save current page for back navigation
+                      localStorage.setItem('previousPage', '/mentors');
+                      
+                      // Check if already approved or send request
+                      try {
+                        const permissionResponse = await fetch(
+                          API_ENDPOINTS.CHAT_PERMISSION_CHECK(user.email, mentor.email)
+                        );
+                        const permissionData = await permissionResponse.json();
+                        
+                        if (permissionData.canChat) {
+                          navigate(`/chat/${mentor.email}`);
+                        } else {
+                          // Send chat request
+                          const response = await fetch(API_ENDPOINTS.CHAT_REQUEST_CREATE, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              sender: user.email,
+                              receiver: mentor.email,
+                              message: `Hi ${mentor.name}, I would like to connect with you.`
+                            })
+                          });
+                          
+                          const data = await response.json();
+                          
+                          if (data.canChat) {
+                            navigate(`/chat/${mentor.email}`);
+                          } else {
+                            toast({
+                              title: data.request.status === 'pending' ? "Request Pending" : "Request Sent",
+                              description: data.message,
+                            });
+                          }
+                        }
+                      } catch (error) {
+                        console.error('Error:', error);
+                        toast({
+                          title: "Error",
+                          description: "Failed to send chat request",
+                          variant: "destructive"
+                        });
+                      }
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -256,83 +314,6 @@ const FindMentors = () => {
           </div>
         )}
       </div>
-
-      {/* Session Request Modal */}
-      <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Request a session</DialogTitle>
-            <DialogDescription>
-              {selectedMentor ? `With ${selectedMentor.name} • ${selectedMentor.domain}` : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Session Type</Label>
-                <Select value={requestSessionType} onValueChange={setRequestSessionType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="video-call">Video Call</SelectItem>
-                    <SelectItem value="phone-call">Phone Call</SelectItem>
-                    <SelectItem value="messaging">Messaging</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Duration</Label>
-                <Select value={requestDuration} onValueChange={setRequestDuration}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select duration" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30min">30 minutes</SelectItem>
-                    <SelectItem value="45min">45 minutes</SelectItem>
-                    <SelectItem value="60min">1 hour</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label>Preferred Time</Label>
-              <Select value={requestTime} onValueChange={setRequestTime}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select preferred time" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="09:00">09:00</SelectItem>
-                  <SelectItem value="10:00">10:00</SelectItem>
-                  <SelectItem value="14:00">14:00</SelectItem>
-                  <SelectItem value="15:00">15:00</SelectItem>
-                  <SelectItem value="16:00">16:00</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="notes">Notes (optional)</Label>
-              <Textarea id="notes" rows={3} placeholder="What would you like to focus on?" value={requestNotes} onChange={(e) => setRequestNotes(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                if (!requestSessionType || !requestDuration || !requestTime) {
-                  toast({ title: "Missing details", description: "Please select type, duration, and time.", variant: "destructive" });
-                  return;
-                }
-                setIsRequestOpen(false);
-                toast({ title: "Request sent!", description: "The mentor will review your request." });
-                navigate("/requests");
-              }}
-              className="w-full"
-            >
-              Send Request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

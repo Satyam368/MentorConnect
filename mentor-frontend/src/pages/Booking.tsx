@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,14 +11,61 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Calendar as CalendarIcon, Clock, User, Video, MapPin, Star, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_ENDPOINTS } from "@/lib/api";
 
 const Booking = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTime, setSelectedTime] = useState("");
   const [sessionType, setSessionType] = useState("");
   const [sessionDuration, setSessionDuration] = useState("");
   const [notes, setNotes] = useState("");
+  const [mentors, setMentors] = useState<any[]>([]);
+  const [selectedMentor, setSelectedMentor] = useState<any>(null);
+  const [isLoadingMentors, setIsLoadingMentors] = useState(true);
+
+  // Fetch mentors on component mount
+  useEffect(() => {
+    const fetchMentors = async () => {
+      try {
+        const response = await fetch(API_ENDPOINTS.MENTORS);
+        if (response.ok) {
+          const data = await response.json();
+          setMentors(data.mentors || []);
+        } else {
+          throw new Error('Failed to fetch mentors');
+        }
+      } catch (error) {
+        console.error('Error fetching mentors:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load mentors. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoadingMentors(false);
+      }
+    };
+
+    fetchMentors();
+  }, [toast]);
+
+  // Auto-select mentor from URL parameter
+  useEffect(() => {
+    const mentorId = searchParams.get('mentorId');
+    if (mentorId && mentors.length > 0 && !selectedMentor) {
+      const mentor = mentors.find(m => m._id === mentorId);
+      if (mentor) {
+        setSelectedMentor(mentor);
+        toast({
+          title: "Mentor Selected",
+          description: `Booking session with ${mentor.name}`,
+        });
+      }
+    }
+  }, [searchParams, mentors, selectedMentor, toast]);
 
   // Clear selected time when date changes
   const handleDateChange = (date: Date | undefined) => {
@@ -25,39 +73,44 @@ const Booking = () => {
     setSelectedTime(""); // Reset time when date changes
   };
 
-  // Mock mentor data
-  const mentor = {
-    name: "Dr. Elena Rodriguez",
-    avatar: "👩‍🎨",
-    expertise: "UX Design",
-    rating: 4.9,
-    sessions: 120,
-    hourlyRate: 125,
-    bio: "Senior UX Designer with 8+ years of experience at top tech companies. Specializing in user research, design systems, and product strategy.",
-    skills: ["Figma", "User Research", "Prototyping", "Design Systems"],
-  };
-
-  // Generate available time slots for the selected date
+  // Generate available time slots for the selected date based on mentor availability
   const generateTimeSlots = (date: Date | undefined) => {
-    if (!date) return [];
+    if (!date || !selectedMentor) return [];
     
     const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const today = new Date();
     const isToday = date.toDateString() === today.toDateString();
     const currentHour = today.getHours();
     
-    // Different availability based on day of week
+    // Get mentor's availability (could be string like "Mon-Fri 9am-5pm" or array)
+    const mentorAvailability = selectedMentor.mentor?.availability || selectedMentor.availability || "Mon-Fri 9am-5pm";
+    
+    // Parse mentor availability and generate slots
     let availableSlots: string[] = [];
     
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      // Weekend - limited availability
-      availableSlots = ["10:00", "11:00", "14:00", "15:00"];
+    // If availability is in array format (e.g., ["Monday", "Tuesday", "Wednesday"])
+    if (Array.isArray(mentorAvailability)) {
+      const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const currentDay = daysOfWeek[dayOfWeek];
+      
+      if (mentorAvailability.includes(currentDay)) {
+        availableSlots = [
+          "09:00", "10:00", "11:00", "12:00", 
+          "13:00", "14:00", "15:00", "16:00", "17:00"
+        ];
+      }
     } else {
-      // Weekday - full availability
-      availableSlots = [
-        "09:00", "10:00", "11:00", "12:00", 
-        "13:00", "14:00", "15:00", "16:00", "17:00"
-      ];
+      // Default availability logic if string or undefined
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        // Weekend - limited availability
+        availableSlots = ["10:00", "11:00", "14:00", "15:00"];
+      } else {
+        // Weekday - full availability
+        availableSlots = [
+          "09:00", "10:00", "11:00", "12:00", 
+          "13:00", "14:00", "15:00", "16:00", "17:00"
+        ];
+      }
     }
     
     // Filter out past times if it's today
@@ -71,36 +124,21 @@ const Booking = () => {
     return availableSlots;
   };
 
-  // Mock upcoming sessions
-  const upcomingSessions = [
-    {
-      id: 1,
-      mentor: "Dr. Sarah Johnson",
-      date: "Dec 28, 2024",
-      time: "2:00 PM",
-      duration: "60 min",
-      type: "Video Call",
-      status: "confirmed",
-      avatar: "👩‍💻"
-    },
-    {
-      id: 2,
-      mentor: "Marcus Chen",
-      date: "Dec 30, 2024",
-      time: "10:00 AM",
-      duration: "45 min",
-      type: "Video Call",
-      status: "pending",
-      avatar: "👨‍🔬"
-    }
-  ];
-
   const getAvailableSlots = (date: Date | undefined) => {
     return generateTimeSlots(date);
   };
 
   const handleBooking = async () => {
     // Validate required fields
+    if (!selectedMentor) {
+      toast({
+        title: "Please select a mentor",
+        description: "Choose a mentor to book a session with.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!selectedDate) {
       toast({
         title: "Please select a date",
@@ -137,25 +175,27 @@ const Booking = () => {
       return;
     }
 
-    // Calculate session cost
+    // Calculate session cost based on mentor's hourly rate
+    const hourlyRate = parseInt(selectedMentor.mentor?.hourlyRate || selectedMentor.hourlyRate || "100");
     const costMultiplier = sessionDuration === "30min" ? 0.5 : 
                           sessionDuration === "45min" ? 0.75 :
                           sessionDuration === "60min" ? 1 :
                           sessionDuration === "90min" ? 1.5 :
                           sessionDuration === "120min" ? 2 : 1;
     
-    const sessionCost = Math.round(mentor.hourlyRate * costMultiplier);
+    const sessionCost = Math.round(hourlyRate * costMultiplier);
 
     try {
       // Get logged-in user from localStorage
       const authUser = JSON.parse(localStorage.getItem("authUser") || "{}");
       
-      const res = await fetch("http://localhost:3000/api/bookings", {
+      const res = await fetch(API_ENDPOINTS.BOOKINGS, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: authUser.id || "guest",
-          mentorName: mentor.name,
+          mentorId: selectedMentor._id,
+          mentorName: selectedMentor.name,
           sessionType,
           duration: sessionDuration,
           date: selectedDate.toISOString(),
@@ -170,14 +210,20 @@ const Booking = () => {
 
       toast({
         title: "Session booked successfully!",
-        description: `Your ${sessionDuration} ${sessionType.replace('-', ' ')} with ${mentor.name} on ${selectedDate.toLocaleDateString()} at ${selectedTime} has been requested. Cost: $${sessionCost}`,
+        description: `Your ${sessionDuration} ${sessionType.replace('-', ' ')} on ${selectedDate.toLocaleDateString()} at ${selectedTime} has been requested. Cost: $${sessionCost}`,
       });
 
       // Reset form
+      setSelectedMentor(null);
       setSelectedTime("");
       setSessionType("");
       setSessionDuration("");
       setNotes("");
+      
+      // Navigate to requests page
+      setTimeout(() => {
+        navigate('/requests');
+      }, 1500);
     } catch (err: any) {
       toast({
         title: "Booking failed",
@@ -199,39 +245,6 @@ const Booking = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Booking Form */}
           <div className="space-y-6">
-            {/* Mentor Info */}
-            <Card className="mentor-card">
-              <CardHeader>
-                <div className="flex items-center space-x-4">
-                  <Avatar className="w-16 h-16">
-                    <AvatarImage src="/placeholder-avatar.jpg" />
-                    <AvatarFallback className="text-2xl">{mentor.avatar}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <CardTitle className="flex items-center space-x-2">
-                      <span>{mentor.name}</span>
-                      <div className="flex items-center space-x-1 text-sm">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span>{mentor.rating}</span>
-                      </div>
-                    </CardTitle>
-                    <p className="text-muted-foreground">{mentor.expertise}</p>
-                    <p className="text-lg font-semibold text-foreground">${mentor.hourlyRate}/hour</p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">{mentor.bio}</p>
-                <div className="flex flex-wrap gap-2">
-                  {mentor.skills.map((skill, index) => (
-                    <Badge key={index} variant="outline" className="text-xs">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Booking Details */}
             <Card className="mentor-card">
               <CardHeader>
@@ -241,6 +254,55 @@ const Booking = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Mentor Selection */}
+                <div>
+                  <Label>Select Mentor</Label>
+                  <Select 
+                    value={selectedMentor?._id || ""} 
+                    onValueChange={(mentorId) => {
+                      const mentor = mentors.find(m => m._id === mentorId);
+                      setSelectedMentor(mentor);
+                      setSelectedTime(""); // Reset time when mentor changes
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a mentor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {isLoadingMentors ? (
+                        <SelectItem value="loading" disabled>
+                          Loading mentors...
+                        </SelectItem>
+                      ) : mentors.length === 0 ? (
+                        <SelectItem value="no-mentors" disabled>
+                          No mentors available
+                        </SelectItem>
+                      ) : (
+                        mentors.map((mentor) => (
+                          <SelectItem key={mentor._id} value={mentor._id}>
+                            {mentor.name} - {mentor.company || mentor.mentor?.domain || "General"} (${mentor.mentor?.hourlyRate || mentor.hourlyRate || "100"}/hr)
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {selectedMentor && (
+                    <div className="mt-2 p-3 bg-muted rounded-md">
+                      <p className="text-sm">
+                        <span className="font-medium">Availability:</span>{" "}
+                        {Array.isArray(selectedMentor.mentor?.availability || selectedMentor.availability) 
+                          ? (selectedMentor.mentor?.availability || selectedMentor.availability).join(", ")
+                          : (selectedMentor.mentor?.availability || selectedMentor.availability || "Mon-Fri 9am-5pm")}
+                      </p>
+                      {selectedMentor.skills && selectedMentor.skills.length > 0 && (
+                        <p className="text-sm mt-1">
+                          <span className="font-medium">Skills:</span> {selectedMentor.skills.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>Session Type</Label>
@@ -275,10 +337,16 @@ const Booking = () => {
 
                 <div>
                   <Label>Time Slot</Label>
-                  <Select value={selectedTime} onValueChange={setSelectedTime}>
+                  <Select 
+                    value={selectedTime} 
+                    onValueChange={setSelectedTime}
+                    disabled={!selectedMentor}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder={
-                        getAvailableSlots(selectedDate).length === 0 
+                        !selectedMentor
+                          ? "Select a mentor first"
+                          : getAvailableSlots(selectedDate).length === 0 
                           ? "No available slots for this date" 
                           : "Select available time"
                       } />
@@ -314,11 +382,16 @@ const Booking = () => {
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-sm text-muted-foreground">Session Cost:</span>
                     <span className="text-lg font-semibold">
-                      ${sessionDuration === "30min" ? Math.round(mentor.hourlyRate * 0.5) : 
-                        sessionDuration === "45min" ? Math.round(mentor.hourlyRate * 0.75) :
-                        sessionDuration === "60min" ? mentor.hourlyRate :
-                        sessionDuration === "90min" ? Math.round(mentor.hourlyRate * 1.5) :
-                        sessionDuration === "120min" ? mentor.hourlyRate * 2 : 0}
+                      ${selectedMentor && sessionDuration ? (
+                        Math.round(
+                          parseInt(selectedMentor.mentor?.hourlyRate || selectedMentor.hourlyRate || "100") *
+                          (sessionDuration === "30min" ? 0.5 : 
+                           sessionDuration === "45min" ? 0.75 :
+                           sessionDuration === "60min" ? 1 :
+                           sessionDuration === "90min" ? 1.5 :
+                           sessionDuration === "120min" ? 2 : 0)
+                        )
+                      ) : 0}
                     </span>
                   </div>
                   <Button onClick={handleBooking} className="w-full" size="lg">
@@ -350,10 +423,18 @@ const Booking = () => {
                 />
                 <div className="mt-4">
                   <p className="text-sm font-medium mb-2">
-                    Available times for {selectedDate?.toLocaleDateString()}:
+                    {selectedMentor 
+                      ? `Available times for ${selectedDate?.toLocaleDateString()}:`
+                      : "Select a mentor to see available times"}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {getAvailableSlots(selectedDate).map((time) => (
+                    {!selectedMentor ? (
+                      <div className="text-center w-full py-4">
+                        <p className="text-sm text-muted-foreground">
+                          Please select a mentor first to view available time slots
+                        </p>
+                      </div>
+                    ) : getAvailableSlots(selectedDate).map((time) => (
                       <Badge 
                         key={time} 
                         variant={selectedTime === time ? "default" : "outline"}
@@ -388,45 +469,9 @@ const Booking = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {upcomingSessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-2xl">{session.avatar}</div>
-                      <div>
-                        <p className="font-medium text-card-foreground">{session.mentor}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {session.date} at {session.time} • {session.duration}
-                        </p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Badge 
-                            variant={session.status === "confirmed" ? "default" : "secondary"}
-                            className="text-xs"
-                          >
-                            {session.status}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground flex items-center">
-                            <Video className="h-3 w-3 mr-1" />
-                            {session.type}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col space-y-1">
-                      <Button size="sm" variant="outline">
-                        <MessageSquare className="h-4 w-4 mr-1" />
-                        Message
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-xs">
-                        Reschedule
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {upcomingSessions.length === 0 && (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">No upcoming sessions</p>
-                  </div>
-                )}
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No upcoming sessions</p>
+                </div>
               </CardContent>
             </Card>
           </div>

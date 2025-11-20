@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mail, Phone, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_ENDPOINTS } from "@/lib/api";
 
 const Verify = () => {
   const { toast } = useToast();
@@ -23,14 +24,14 @@ const Verify = () => {
   const [activeTab, setActiveTab] = useState(prefilledPhone ? "phone" : "email");
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleSendCode = async () => {
     try {
       setIsSending(true);
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
       const channel = activeTab;
       const body = channel === "email" ? { channel, email } : { channel, phone };
-      const res = await fetch(`${baseUrl}/api/otp/send`, {
+      const res = await fetch(API_ENDPOINTS.OTP_SEND, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -49,10 +50,9 @@ const Verify = () => {
     try {
       setIsVerifying(true);
       const code = otp.join("");
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
       const channel = activeTab;
       const body = channel === "email" ? { channel, email, otp: code } : { channel, phone, otp: code };
-      const res = await fetch(`${baseUrl}/api/otp/verify`, {
+      const res = await fetch(API_ENDPOINTS.OTP_VERIFY, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -65,6 +65,56 @@ const Verify = () => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    // Only allow numbers
+    const val = value.replace(/[^0-9]/g, "").slice(0, 1);
+    
+    // Update the OTP array
+    const next = [...otp];
+    next[index] = val;
+    setOtp(next);
+
+    // Auto-focus to next input if value is entered
+    if (val && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Handle backspace - move to previous input if current is empty
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+    
+    // Handle arrow keys for navigation
+    if (e.key === 'ArrowLeft' && index > 0) {
+      e.preventDefault();
+      otpInputRefs.current[index - 1]?.focus();
+    }
+    
+    if (e.key === 'ArrowRight' && index < 5) {
+      e.preventDefault();
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6);
+    
+    if (pastedData) {
+      const newOtp = [...otp];
+      for (let i = 0; i < pastedData.length && i < 6; i++) {
+        newOtp[i] = pastedData[i];
+      }
+      setOtp(newOtp);
+      
+      // Focus on the next empty field or the last field
+      const nextIndex = Math.min(pastedData.length, 5);
+      otpInputRefs.current[nextIndex]?.focus();
     }
   };
 
@@ -116,16 +166,15 @@ const Verify = () => {
                 {otp.map((v, idx) => (
                   <Input
                     key={idx}
+                    ref={(el) => (otpInputRefs.current[idx] = el)}
                     inputMode="numeric"
                     maxLength={1}
                     value={v}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9]/g, "").slice(0,1);
-                      const next = [...otp];
-                      next[idx] = val;
-                      setOtp(next);
-                    }}
-                    className="text-center"
+                    onChange={(e) => handleOtpChange(idx, e.target.value)}
+                    onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                    onPaste={handleOtpPaste}
+                    className="text-center text-lg font-semibold"
+                    autoComplete="off"
                   />
                 ))}
               </div>

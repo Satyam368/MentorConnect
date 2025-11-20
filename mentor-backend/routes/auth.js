@@ -2,6 +2,10 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
+const profilePictureUpload = require("../config/profilePictureConfig");
+const path = require("path");
+const fs = require("fs");
+const { sendSMS } = require("../utils/smsService");
 
 // Validation helper functions
 function validateEmail(email) {
@@ -210,6 +214,7 @@ router.post("/login", async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        profilePicture: user.profilePicture || "",
       },
     });
   } catch (err) {
@@ -264,19 +269,30 @@ router.post("/otp/send", async (req, res) => {
     } else {
       user.phoneOtp = code;
       user.phoneOtpExpiresAt = expires;
+      
+      // Try multiple SMS providers
       const smsClient = req.app.get("smsClient");
-      if (smsClient && process.env.TWILIO_FROM_NUMBER) {
-        try {
+      const smsProvider = process.env.SMS_PROVIDER || 'console';
+      
+      try {
+        if (smsProvider !== 'twilio' && smsProvider !== 'console') {
+          // Use alternative SMS service (Fast2SMS, MSG91, etc.)
+          await sendSMS(user.phone, `Your verification code is ${code}. It expires in 10 minutes.`, code);
+          console.log(`✅ SMS sent via ${smsProvider} to ${user.phone}`);
+        } else if (smsClient && process.env.TWILIO_FROM_NUMBER) {
+          // Use Twilio
           await smsClient.messages.create({
             from: process.env.TWILIO_FROM_NUMBER,
             to: user.phone,
             body: `Your verification code is ${code}. It expires in 10 minutes.`,
           });
-        } catch (e) {
-          console.warn("Failed to send SMS OTP; logging instead", e?.message);
+          console.log(`✅ SMS sent via Twilio to ${user.phone}`);
+        } else {
+          // Fallback to console
           console.log(`Phone OTP for ${user.phone}: ${code}`);
         }
-      } else {
+      } catch (e) {
+        console.warn("Failed to send SMS OTP; logging instead", e?.message);
         console.log(`Phone OTP for ${user.phone}: ${code}`);
       }
     }
@@ -573,7 +589,7 @@ router.get("/mentors", async (req, res) => {
   try {
     const mentors = await User.find(
       { role: "mentor" }, 
-      "name email phone mentor isEmailVerified isPhoneVerified"
+      "name email phone mentor profilePicture bio skills location company position isEmailVerified isPhoneVerified"
     ).lean();
     
     res.json({ mentors });
@@ -588,7 +604,7 @@ router.get("/students", async (req, res) => {
   try {
     const students = await User.find(
       { role: "student" }, 
-      "name email phone mentee isEmailVerified isPhoneVerified"
+      "name email phone mentee profilePicture bio skills location isEmailVerified isPhoneVerified"
     ).lean();
     
     res.json({ students });
@@ -613,6 +629,7 @@ router.post("/profile", async (req, res) => {
       phone: profileData.phone,
       location: profileData.location,
       bio: profileData.bio,
+      profilePicture: profileData.profilePicture,
       skills: profileData.skills || [],
       languages: profileData.languages || [],
       certifications: profileData.certifications || [],
@@ -714,6 +731,7 @@ router.get("/profile/:email", async (req, res) => {
       role: user.role || "student",
       location: user.location || "",
       bio: user.bio || "",
+      profilePicture: user.profilePicture || "",
       skills: user.skills || [],
       languages: user.languages || [],
       availability: user.availability || [],
@@ -923,6 +941,96 @@ router.post("/session-complete", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Upload profile picture
+router.post("/profile/upload-picture", profilePictureUpload.single('profilePicture'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const { email } = req.body;
+    if (!email) {
+      // Delete uploaded file if email is missing
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    // Find user and update profile picture
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Delete uploaded file if user not found
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Delete old profile picture if exists
+    if (user.profilePicture) {
+      const oldPicturePath = path.join(__dirname, '..', user.profilePicture);
+      if (fs.existsSync(oldPicturePath)) {
+        fs.unlinkSync(oldPicturePath);
+      }
+    }
+
+    // Update user with new profile picture path
+    const profilePicturePath = `/uploads/profiles/${req.file.filename}`;
+    user.profilePicture = profilePicturePath;
+    await user.save();
+
+    res.json({
+      message: "Profile picture uploaded successfully",
+      profilePicture: profilePicturePath,
+      url: `${req.protocol}://${req.get('host')}${profilePicturePath}`
+    });
+  } catch (error) {
+    // Delete uploaded file if there's an error
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    console.error("Error uploading profile picture:", error);
+    res.status(500).json({ 
+      message: "Failed to upload profile picture",
+      error: error.message 
+    });
+  }
+});
+
+// Delete profile picture
+router.delete("/profile/delete-picture", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.profilePicture) {
+      return res.status(400).json({ message: "No profile picture to delete" });
+    }
+
+    // Delete file from disk
+    const picturePath = path.join(__dirname, '..', user.profilePicture);
+    if (fs.existsSync(picturePath)) {
+      fs.unlinkSync(picturePath);
+    }
+
+    // Remove from database
+    user.profilePicture = null;
+    await user.save();
+
+    res.json({ message: "Profile picture deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting profile picture:", error);
+    res.status(500).json({ 
+      message: "Failed to delete profile picture",
+      error: error.message 
+    });
   }
 });
 

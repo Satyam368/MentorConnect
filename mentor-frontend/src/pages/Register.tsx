@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { GraduationCap, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_ENDPOINTS, apiRequest } from "@/lib/api";
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -33,30 +34,153 @@ const Register = () => {
       goals: ""
     }
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePhone = (phone: string): boolean => {
+    if (!phone) return true; // Phone is optional
+    const phoneRegex = /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/;
+    return phoneRegex.test(phone) && phone.length >= 10;
+  };
+
+  const validatePassword = (password: string): { isValid: boolean; message: string } => {
+    if (password.length < 8) {
+      return { isValid: false, message: "Password must be at least 8 characters long" };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { isValid: false, message: "Password must contain at least one uppercase letter" };
+    }
+    if (!/[a-z]/.test(password)) {
+      return { isValid: false, message: "Password must contain at least one lowercase letter" };
+    }
+    if (!/[0-9]/.test(password)) {
+      return { isValid: false, message: "Password must contain at least one number" };
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      return { isValid: false, message: "Password must contain at least one special character" };
+    }
+    return { isValid: true, message: "" };
+  };
+
+  const validateName = (name: string): boolean => {
+    return name.trim().length >= 2 && /^[a-zA-Z\s]+$/.test(name);
+  };
+
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: "" }));
+    }
+    
+    // Real-time validation
+    if (field === "email" && value) {
+      if (!validateEmail(value)) {
+        setErrors(prev => ({ ...prev, email: "Please enter a valid email address" }));
+      }
+    }
+    
+    if (field === "phone" && value) {
+      if (!validatePhone(value)) {
+        setErrors(prev => ({ ...prev, phone: "Please enter a valid phone number (min 10 digits)" }));
+      }
+    }
+    
+    if (field === "name" && value) {
+      if (!validateName(value)) {
+        setErrors(prev => ({ ...prev, name: "Name must be at least 2 characters and contain only letters" }));
+      }
+    }
+    
+    if (field === "password" && value) {
+      const validation = validatePassword(value);
+      if (!validation.isValid) {
+        setErrors(prev => ({ ...prev, password: validation.message }));
+      }
+    }
+    
+    if (field === "confirmPassword" && value) {
+      if (value !== formData.password) {
+        setErrors(prev => ({ ...prev, confirmPassword: "Passwords do not match" }));
+      }
+    }
   };
 
 
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
-  setIsLoading(true);
-
-  if (formData.password !== formData.confirmPassword) {
-    toast({ title: "Password mismatch", description: "Please make sure your passwords match.", variant: "destructive" });
-    setIsLoading(false);
+  
+  // Comprehensive validation
+  const newErrors: Record<string, string> = {};
+  
+  if (!formData.name.trim()) {
+    newErrors.name = "Name is required";
+  } else if (!validateName(formData.name)) {
+    newErrors.name = "Name must be at least 2 characters and contain only letters";
+  }
+  
+  if (!formData.email.trim()) {
+    newErrors.email = "Email is required";
+  } else if (!validateEmail(formData.email)) {
+    newErrors.email = "Please enter a valid email address";
+  }
+  
+  if (formData.phone && !validatePhone(formData.phone)) {
+    newErrors.phone = "Please enter a valid phone number (min 10 digits)";
+  }
+  
+  if (!formData.password) {
+    newErrors.password = "Password is required";
+  } else {
+    const passwordValidation = validatePassword(formData.password);
+    if (!passwordValidation.isValid) {
+      newErrors.password = passwordValidation.message;
+    }
+  }
+  
+  if (!formData.confirmPassword) {
+    newErrors.confirmPassword = "Please confirm your password";
+  } else if (formData.password !== formData.confirmPassword) {
+    newErrors.confirmPassword = "Passwords do not match";
+  }
+  
+  // Role-specific validation
+  if (formData.role === "mentor") {
+    if (!formData.mentor.domain.trim()) {
+      newErrors.domain = "Domain is required for mentors";
+    }
+    if (!formData.mentor.experience) {
+      newErrors.experience = "Experience is required for mentors";
+    }
+    if (formData.mentor.hourlyRate && (isNaN(Number(formData.mentor.hourlyRate)) || Number(formData.mentor.hourlyRate) < 0)) {
+      newErrors.hourlyRate = "Please enter a valid hourly rate";
+    }
+  }
+  
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    toast({ 
+      title: "Validation Error", 
+      description: "Please fix the errors in the form", 
+      variant: "destructive" 
+    });
     return;
   }
+  
+  setIsLoading(true);
 
   try {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/register`, {
+    const res = await fetch(API_ENDPOINTS.REGISTER, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -121,10 +245,13 @@ const Register = () => {
                     placeholder="Enter your full name"
                     value={formData.name}
                     onChange={(e) => handleInputChange("name", e.target.value)}
-                    className="pl-10"
+                    className={`pl-10 ${errors.name ? 'border-destructive' : ''}`}
                     required
                   />
                 </div>
+                {errors.name && (
+                  <p className="text-sm text-destructive">{errors.name}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -137,24 +264,31 @@ const Register = () => {
                     placeholder="Enter your email"
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
-                    className="pl-10"
+                    className={`pl-10 ${errors.email ? 'border-destructive' : ''}`}
                     required
                   />
                 </div>
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email}</p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">Phone (Optional)</Label>
                 <div className="relative">
                   <Input
                     id="phone"
                     type="tel"
-                    placeholder="Enter your phone number"
+                    placeholder="+1234567890"
                     value={formData.phone}
                     onChange={(e) => handleInputChange("phone", e.target.value)}
-                    className="pl-3"
+                    className={`pl-3 ${errors.phone ? 'border-destructive' : ''}`}
                   />
                 </div>
+                {errors.phone && (
+                  <p className="text-sm text-destructive">{errors.phone}</p>
+                )}
+                <p className="text-xs text-muted-foreground">Min 10 digits required</p>
               </div>
 
               <div className="space-y-2">
@@ -167,7 +301,7 @@ const Register = () => {
                     placeholder="Create a password"
                     value={formData.password}
                     onChange={(e) => handleInputChange("password", e.target.value)}
-                    className="pl-10 pr-10"
+                    className={`pl-10 pr-10 ${errors.password ? 'border-destructive' : ''}`}
                     required
                   />
                   <Button
@@ -184,6 +318,10 @@ const Register = () => {
                     )}
                   </Button>
                 </div>
+                {errors.password && (
+                  <p className="text-sm text-destructive">{errors.password}</p>
+                )}
+                <p className="text-xs text-muted-foreground">Min 8 characters, uppercase, lowercase, number & special char</p>
               </div>
 
               <div className="space-y-2">
@@ -196,7 +334,7 @@ const Register = () => {
                     placeholder="Confirm your password"
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                    className="pl-10 pr-10"
+                    className={`pl-10 pr-10 ${errors.confirmPassword ? 'border-destructive' : ''}`}
                     required
                   />
                   <Button
@@ -213,6 +351,9 @@ const Register = () => {
                     )}
                   </Button>
                 </div>
+                {errors.confirmPassword && (
+                  <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -238,21 +379,31 @@ const Register = () => {
                 <div className="space-y-4 pt-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="domain">Primary Domain</Label>
+                      <Label htmlFor="domain">Primary Domain *</Label>
                       <Input
                         id="domain"
                         placeholder="e.g., Software Engineering"
                         value={formData.mentor.domain}
-                        onChange={(e) => setFormData(prev => ({ ...prev, mentor: { ...prev.mentor, domain: e.target.value } }))}
+                        onChange={(e) => {
+                          setFormData(prev => ({ ...prev, mentor: { ...prev.mentor, domain: e.target.value } }));
+                          if (errors.domain) setErrors(prev => ({ ...prev, domain: "" }));
+                        }}
+                        className={errors.domain ? 'border-destructive' : ''}
                       />
+                      {errors.domain && (
+                        <p className="text-sm text-destructive">{errors.domain}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label>Experience</Label>
+                      <Label>Experience *</Label>
                       <Select
                         value={formData.mentor.experience}
-                        onValueChange={(v) => setFormData(prev => ({ ...prev, mentor: { ...prev.mentor, experience: v } }))}
+                        onValueChange={(v) => {
+                          setFormData(prev => ({ ...prev, mentor: { ...prev.mentor, experience: v } }));
+                          if (errors.experience) setErrors(prev => ({ ...prev, experience: "" }));
+                        }}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={errors.experience ? 'border-destructive' : ''}>
                           <SelectValue placeholder="Select years" />
                         </SelectTrigger>
                         <SelectContent>
@@ -262,6 +413,9 @@ const Register = () => {
                           <SelectItem value="10+ years">10+ years</SelectItem>
                         </SelectContent>
                       </Select>
+                      {errors.experience && (
+                        <p className="text-sm text-destructive">{errors.experience}</p>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -269,10 +423,19 @@ const Register = () => {
                       <Label htmlFor="hourlyRate">Hourly Rate (₹ INR)</Label>
                       <Input
                         id="hourlyRate"
-                        placeholder="₹1500"
+                        type="number"
+                        placeholder="1500"
+                        min="0"
                         value={formData.mentor.hourlyRate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, mentor: { ...prev.mentor, hourlyRate: e.target.value } }))}
+                        onChange={(e) => {
+                          setFormData(prev => ({ ...prev, mentor: { ...prev.mentor, hourlyRate: e.target.value } }));
+                          if (errors.hourlyRate) setErrors(prev => ({ ...prev, hourlyRate: "" }));
+                        }}
+                        className={errors.hourlyRate ? 'border-destructive' : ''}
                       />
+                      {errors.hourlyRate && (
+                        <p className="text-sm text-destructive">{errors.hourlyRate}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="languages">Languages</Label>
