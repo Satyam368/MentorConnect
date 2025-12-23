@@ -19,7 +19,7 @@ const Profile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPicture, setIsUploadingPicture] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  
+
   // Dynamic user data - loaded from backend
   const [profile, setProfile] = useState({
     name: "",
@@ -46,7 +46,7 @@ const Profile = () => {
       try {
         // Get user data from localStorage (from login)
         const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
-        
+
         if (!userData) {
           // If no user data in localStorage, redirect to login or show message
           console.log('No user data found in localStorage');
@@ -63,7 +63,7 @@ const Profile = () => {
 
         const user = JSON.parse(userData);
         console.log('Current authUser:', user); // Debug log
-        
+
         // Set basic user info from registration
         setProfile(prev => ({
           ...prev,
@@ -79,11 +79,11 @@ const Profile = () => {
             console.log('Fetching profile for email:', user.email);
             const profileResponse = await fetch(API_ENDPOINTS.PROFILE_BY_EMAIL(user.email));
             console.log('Profile response status:', profileResponse.status);
-            
+
             if (profileResponse.ok) {
               const profileData = await profileResponse.json();
               console.log('Profile data received:', profileData);
-              
+
               // Merge profile data with user data
               setProfile(prev => ({
                 ...prev,
@@ -181,18 +181,18 @@ const Profile = () => {
       if (response.ok) {
         const data = await response.json();
         setProfile(prev => ({ ...prev, profilePicture: data.profilePicture }));
-        
+
         // Update localStorage so navbar shows the new picture immediately
         const authUser = localStorage.getItem('authUser');
         if (authUser) {
           const userData = JSON.parse(authUser);
           userData.profilePicture = data.profilePicture;
           localStorage.setItem('authUser', JSON.stringify(userData));
-          
+
           // Dispatch custom event to notify Navigation component
           window.dispatchEvent(new Event('profileUpdated'));
         }
-        
+
         toast({
           title: "Success",
           description: "Profile picture updated successfully"
@@ -230,18 +230,18 @@ const Profile = () => {
 
       if (response.ok) {
         setProfile(prev => ({ ...prev, profilePicture: "" }));
-        
+
         // Update localStorage to remove the picture from navbar
         const authUser = localStorage.getItem('authUser');
         if (authUser) {
           const userData = JSON.parse(authUser);
           userData.profilePicture = "";
           localStorage.setItem('authUser', JSON.stringify(userData));
-          
+
           // Dispatch custom event to notify Navigation component
           window.dispatchEvent(new Event('profileUpdated'));
         }
-        
+
         toast({
           title: "Success",
           description: "Profile picture deleted successfully"
@@ -316,7 +316,7 @@ const Profile = () => {
           title: "Profile updated successfully!",
           description: result.message || "Your changes have been saved.",
         });
-        
+
         // Update localStorage with the new user data
         const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
         if (userData) {
@@ -325,7 +325,7 @@ const Profile = () => {
           localStorage.setItem('authUser', JSON.stringify(updatedUser));
           localStorage.setItem('user', JSON.stringify(updatedUser));
         }
-        
+
         setIsEditing(false);
       } else {
         const errorData = await response.json();
@@ -479,43 +479,68 @@ const Profile = () => {
   }
 
   return (
-    <div className="flex-1 bg-muted/30">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+    <div className="flex-1 bg-muted/30 min-h-screen relative overflow-hidden">
+      {/* Hero Background */}
+      <div className="absolute top-0 left-0 right-0 h-80 bg-gradient-hero opacity-10 pointer-events-none"></div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 pt-24 relative z-10">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-end mb-10 gap-6">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Profile Management</h1>
-            <p className="text-muted-foreground">Manage your profile information and settings</p>
+            <Badge variant="outline" className="mb-4 bg-primary/10 text-primary border-primary/20 backdrop-blur-sm">
+              {profile.role === "mentor" ? "✨ Mentor Profile" : "🎓 Student Profile"}
+            </Badge>
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground tracking-tight mb-2">
+              <span className="text-gradient">Profile Management</span>
+            </h1>
+            <p className="text-lg text-muted-foreground/80 max-w-2xl font-medium">
+              Manage your personal information, privacy settings, and professional portfolio.
+            </p>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex space-x-3">
             {isEditing ? (
               <>
-                <Button variant="outline" onClick={() => setIsEditing(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditing(false)}
+                  className="bg-background/50 backdrop-blur-sm hover:bg-background/80"
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving}>
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="btn-premium shadow-lg shadow-primary/25 text-white"
+                >
                   {isSaving ? "Saving..." : "Save Changes"}
                 </Button>
               </>
             ) : (
-              <Button onClick={() => setIsEditing(true)}>Edit Profile</Button>
+              <Button
+                onClick={() => setIsEditing(true)}
+                className="btn-premium shadow-lg shadow-primary/25 text-white"
+              >
+                Edit Profile
+              </Button>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Profile Photo & Basic Info */}
-          <div className="lg:col-span-1">
-            <Card className="mentor-card">
-              <CardHeader className="text-center">
-                <div className="relative inline-block">
-                  <Avatar className="w-32 h-32 mx-auto">
-                    <AvatarImage src={profile.profilePicture ? `${API_BASE_URL}${profile.profilePicture}` : undefined} />
-                    <AvatarFallback className="text-2xl">
+          <div className="lg:col-span-4 space-y-6">
+            <Card className="glass-card border-none overflow-hidden relative group h-fit">
+              <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <CardHeader className="text-center pb-2 relative z-10">
+                <div className="relative inline-block mb-4">
+                  <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full scale-110"></div>
+                  <Avatar className="w-40 h-40 mx-auto border-4 border-background shadow-xl relative">
+                    <AvatarImage src={profile.profilePicture ? `${API_BASE_URL}${profile.profilePicture}` : undefined} className="object-cover" />
+                    <AvatarFallback className="text-4xl bg-gradient-to-br from-primary/10 to-secondary/10 text-primary font-bold">
                       {profile.name.split(' ').map(n => n[0]).join('')}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="absolute bottom-0 right-0">
+                  <div className="absolute bottom-2 right-2 flex space-x-2">
                     <input
                       type="file"
                       id="profile-picture-upload"
@@ -526,20 +551,20 @@ const Profile = () => {
                     />
                     <Button
                       size="icon"
-                      className="rounded-full"
-                      variant="secondary"
+                      className="rounded-full h-10 w-10 shadow-lg btn-premium transition-transform hover:scale-110 text-white"
                       onClick={() => document.getElementById('profile-picture-upload')?.click()}
                       disabled={isUploadingPicture}
                     >
-                      <Camera className="h-4 w-4" />
+                      <Camera className="h-5 w-5" />
                     </Button>
                   </div>
                 </div>
+
                 {profile.profilePicture && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="mt-2 text-xs text-muted-foreground"
+                    className="text-xs text-destructive hover:text-destructive/90 hover:bg-destructive/10 -mt-2 mb-2"
                     onClick={handleDeleteProfilePicture}
                     disabled={isUploadingPicture}
                   >
@@ -547,90 +572,120 @@ const Profile = () => {
                     Remove Photo
                   </Button>
                 )}
-                <CardTitle className="mt-4">{profile.name}</CardTitle>
-                <Badge variant="secondary" className="mt-2">
-                  {profile.role === "mentor" ? "Mentor" : "Mentee"}
-                </Badge>
+
+                <CardTitle className="mt-4 text-2xl font-bold">{profile.name}</CardTitle>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary border border-primary/20">
+                    {profile.role === "mentor" ? "Mentor" : "Mentee"}
+                  </Badge>
+                  {profile.role === "mentor" && (
+                    <Badge variant="outline" className="border-primary/20">
+                      <Clock className="h-3 w-3 mr-1" />
+                      {profile.hourlyRate ? `${profile.hourlyRate}/hr` : "Rate not set"}
+                    </Badge>
+                  )}
+                </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2 text-sm">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span>{profile.email}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{profile.phone}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span>{profile.location}</span>
-                </div>
-                {profile.role === "mentor" && (
-                  <div className="flex items-center space-x-2 text-sm">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>{profile.hourlyRate}/hour</span>
+              <CardContent className="space-y-6 relative z-10 pt-4">
+                <div className="space-y-4">
+                  <div className="p-3 rounded-xl bg-muted/50 hover:bg-muted/80 transition-colors flex items-center gap-3 group/item">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover/item:scale-110 transition-transform">
+                      <Mail className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Email</p>
+                      <p className="text-sm font-medium truncate">{profile.email}</p>
+                    </div>
                   </div>
-                )}
+
+                  <div className="p-3 rounded-xl bg-muted/50 hover:bg-muted/80 transition-colors flex items-center gap-3 group/item">
+                    <div className="h-10 w-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary group-hover/item:scale-110 transition-transform">
+                      <Phone className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Phone</p>
+                      <p className="text-sm font-medium truncate">{profile.phone || "Not set"}</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-muted/50 hover:bg-muted/80 transition-colors flex items-center gap-3 group/item">
+                    <div className="h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover/item:scale-110 transition-transform">
+                      <MapPin className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Location</p>
+                      <p className="text-sm font-medium truncate">{profile.location || "Not set"}</p>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Detailed Information */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-8 space-y-6">
             {/* Personal Information */}
-            <Card className="mentor-card">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <User className="h-5 w-5 mr-2" />
+            <Card className="glass-card border-none">
+              <CardHeader className="pb-4 border-b border-border/50">
+                <CardTitle className="flex items-center text-xl">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary mr-3">
+                    <User className="h-5 w-5" />
+                  </div>
                   Personal Information
                 </CardTitle>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Full Name</Label>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-sm font-medium text-muted-foreground ml-1">Full Name</Label>
                   <Input
                     id="name"
                     value={profile.name}
                     disabled={!isEditing}
                     onChange={(e) => setProfile(prev => ({ ...prev, name: e.target.value }))}
+                    className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium text-muted-foreground ml-1">Email</Label>
                   <Input
                     id="email"
                     type="email"
                     value={profile.email}
                     disabled={!isEditing}
                     onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
+                    className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="phone">Phone</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="phone" className="text-sm font-medium text-muted-foreground ml-1">Phone</Label>
                   <Input
                     id="phone"
                     value={profile.phone}
                     disabled={!isEditing}
                     onChange={(e) => setProfile(prev => ({ ...prev, phone: e.target.value }))}
+                    className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="location">Location</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="location" className="text-sm font-medium text-muted-foreground ml-1">Location</Label>
                   <Input
                     id="location"
                     value={profile.location}
                     disabled={!isEditing}
                     onChange={(e) => setProfile(prev => ({ ...prev, location: e.target.value }))}
+                    className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                   />
                 </div>
-                <div className="md:col-span-2">
-                  <Label htmlFor="bio">Bio</Label>
+                <div className="md:col-span-2 space-y-2">
+                  <Label htmlFor="bio" className="text-sm font-medium text-muted-foreground ml-1">Bio</Label>
                   <Textarea
                     id="bio"
                     value={profile.bio}
                     disabled={!isEditing}
                     rows={4}
                     onChange={(e) => setProfile(prev => ({ ...prev, bio: e.target.value }))}
+                    className="bg-background/50 border-input/50 focus:bg-background transition-colors resize-none"
+                    placeholder="Tell us about yourself..."
                   />
                 </div>
               </CardContent>
@@ -638,40 +693,44 @@ const Profile = () => {
 
             {/* Professional Information */}
             {profile.role === "mentor" && (
-              <Card className="mentor-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Award className="h-5 w-5 mr-2" />
+              <Card className="glass-card border-none">
+                <CardHeader className="pb-4 border-b border-border/50">
+                  <CardTitle className="flex items-center text-xl">
+                    <div className="p-2 rounded-lg bg-secondary/10 text-secondary mr-3">
+                      <Award className="h-5 w-5" />
+                    </div>
                     Professional Information
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="company">Company</Label>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="company" className="text-sm font-medium text-muted-foreground ml-1">Company</Label>
                     <Input
                       id="company"
                       value={profile.company}
                       disabled={!isEditing}
                       onChange={(e) => setProfile(prev => ({ ...prev, company: e.target.value }))}
+                      className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="position">Position</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="position" className="text-sm font-medium text-muted-foreground ml-1">Position</Label>
                     <Input
                       id="position"
                       value={profile.position}
                       disabled={!isEditing}
                       onChange={(e) => setProfile(prev => ({ ...prev, position: e.target.value }))}
+                      className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="experience">Experience</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="experience" className="text-sm font-medium text-muted-foreground ml-1">Experience</Label>
                     <Select
                       value={profile.experience}
                       disabled={!isEditing}
                       onValueChange={(value) => setProfile(prev => ({ ...prev, experience: value }))}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background/50 border-input/50 focus:bg-background transition-colors">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -682,22 +741,24 @@ const Profile = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label htmlFor="hourlyRate">Hourly Rate</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="hourlyRate" className="text-sm font-medium text-muted-foreground ml-1">Hourly Rate</Label>
                     <Input
                       id="hourlyRate"
                       value={profile.hourlyRate}
                       disabled={!isEditing}
                       onChange={(e) => setProfile(prev => ({ ...prev, hourlyRate: e.target.value }))}
+                      className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="education">Education</Label>
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="education" className="text-sm font-medium text-muted-foreground ml-1">Education</Label>
                     <Input
                       id="education"
                       value={profile.education}
                       disabled={!isEditing}
                       onChange={(e) => setProfile(prev => ({ ...prev, education: e.target.value }))}
+                      className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                     />
                   </div>
                 </CardContent>
@@ -706,21 +767,24 @@ const Profile = () => {
 
             {/* Mentor: Services, Industries, Formats */}
             {profile.role === "mentor" && (
-              <Card className="mentor-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Briefcase className="h-5 w-5 mr-2" /> Mentoring Details
+              <Card className="glass-card border-none">
+                <CardHeader className="pb-4 border-b border-border/50">
+                  <CardTitle className="flex items-center text-xl">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent mr-3">
+                      <Briefcase className="h-5 w-5" />
+                    </div>
+                    Mentoring Details
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-8 pt-6">
                   <div>
-                    <Label>Services Offered</Label>
-                    <div className="flex flex-wrap gap-2 mb-3 mt-2">
+                    <Label className="text-sm font-medium text-muted-foreground ml-1">Services Offered</Label>
+                    <div className="flex flex-wrap gap-2 mb-3 mt-3">
                       {mentorExtras.services.map((s) => (
-                        <Badge key={s} variant="secondary" className="text-sm">
+                        <Badge key={s} variant="secondary" className="px-3 py-1 bg-secondary/10 text-secondary border-secondary/20 hover:bg-secondary/20 transition-colors">
                           {s}
                           {isEditing && (
-                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0" onClick={() => removeService(s)}>
+                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0 hover:text-destructive" onClick={() => removeService(s)}>
                               <X className="h-3 w-3" />
                             </Button>
                           )}
@@ -729,20 +793,26 @@ const Profile = () => {
                     </div>
                     {isEditing && (
                       <div className="flex space-x-2">
-                        <Input placeholder="Add service" value={newService} onChange={(e) => setNewService(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addService()} />
-                        <Button onClick={addService} size="icon"><Plus className="h-4 w-4" /></Button>
+                        <Input
+                          placeholder="Add service"
+                          value={newService}
+                          onChange={(e) => setNewService(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && addService()}
+                          className="bg-background/50 border-input/50 focus:bg-background transition-colors"
+                        />
+                        <Button onClick={addService} size="icon" variant="outline" className="border-secondary/20 text-secondary hover:bg-secondary/10"><Plus className="h-4 w-4" /></Button>
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <Label>Industries</Label>
-                    <div className="flex flex-wrap gap-2 mb-3 mt-2">
+                    <Label className="text-sm font-medium text-muted-foreground ml-1">Industries</Label>
+                    <div className="flex flex-wrap gap-2 mb-3 mt-3">
                       {mentorExtras.industries.map((s) => (
-                        <Badge key={s} variant="outline" className="text-sm">
+                        <Badge key={s} variant="outline" className="px-3 py-1 border-primary/20 text-primary hover:bg-primary/5 transition-colors">
                           {s}
                           {isEditing && (
-                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0" onClick={() => removeIndustry(s)}>
+                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0 hover:text-destructive" onClick={() => removeIndustry(s)}>
                               <X className="h-3 w-3" />
                             </Button>
                           )}
@@ -751,20 +821,26 @@ const Profile = () => {
                     </div>
                     {isEditing && (
                       <div className="flex space-x-2">
-                        <Input placeholder="Add industry" value={newIndustry} onChange={(e) => setNewIndustry(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addIndustry()} />
-                        <Button onClick={addIndustry} size="icon"><Plus className="h-4 w-4" /></Button>
+                        <Input
+                          placeholder="Add industry"
+                          value={newIndustry}
+                          onChange={(e) => setNewIndustry(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && addIndustry()}
+                          className="bg-background/50 border-input/50 focus:bg-background transition-colors"
+                        />
+                        <Button onClick={addIndustry} size="icon" variant="outline" className="border-primary/20 text-primary hover:bg-primary/10"><Plus className="h-4 w-4" /></Button>
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <Label>Mentoring Formats</Label>
-                    <div className="flex flex-wrap gap-2 mb-3 mt-2">
+                    <Label className="text-sm font-medium text-muted-foreground ml-1">Mentoring Formats</Label>
+                    <div className="flex flex-wrap gap-2 mb-3 mt-3">
                       {mentorExtras.formats.map((s) => (
-                        <Badge key={s} variant="secondary" className="text-sm">
+                        <Badge key={s} variant="secondary" className="px-3 py-1 bg-accent/10 text-accent border-accent/20 hover:bg-accent/20 transition-colors">
                           {s}
                           {isEditing && (
-                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0" onClick={() => removeFormat(s)}>
+                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0 hover:text-destructive" onClick={() => removeFormat(s)}>
                               <X className="h-3 w-3" />
                             </Button>
                           )}
@@ -773,8 +849,14 @@ const Profile = () => {
                     </div>
                     {isEditing && (
                       <div className="flex space-x-2">
-                        <Input placeholder="Add format" value={newFormat} onChange={(e) => setNewFormat(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addFormat()} />
-                        <Button onClick={addFormat} size="icon"><Plus className="h-4 w-4" /></Button>
+                        <Input
+                          placeholder="Add format"
+                          value={newFormat}
+                          onChange={(e) => setNewFormat(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && addFormat()}
+                          className="bg-background/50 border-input/50 focus:bg-background transition-colors"
+                        />
+                        <Button onClick={addFormat} size="icon" variant="outline" className="border-accent/20 text-accent hover:bg-accent/10"><Plus className="h-4 w-4" /></Button>
                       </div>
                     )}
                   </div>
@@ -783,20 +865,25 @@ const Profile = () => {
             )}
 
             {/* Skills */}
-            <Card className="mentor-card">
-              <CardHeader>
-                <CardTitle>Skills & Expertise</CardTitle>
+            <Card className="glass-card border-none">
+              <CardHeader className="pb-4 border-b border-border/50">
+                <CardTitle className="flex items-center text-xl">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary mr-3">
+                    <BookOpen className="h-5 w-5" />
+                  </div>
+                  Skills & Expertise
+                </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="flex flex-wrap gap-2 mb-4">
                   {profile.skills.map((skill, index) => (
-                    <Badge key={index} variant="secondary" className="text-sm">
+                    <Badge key={index} variant="secondary" className="px-3 py-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors">
                       {skill}
                       {isEditing && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="ml-2 h-4 w-4 p-0"
+                          className="ml-2 h-4 w-4 p-0 hover:text-destructive"
                           onClick={() => removeSkill(skill)}
                         >
                           <X className="h-3 w-3" />
@@ -812,8 +899,9 @@ const Profile = () => {
                       value={newSkill}
                       onChange={(e) => setNewSkill(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addSkill()}
+                      className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                     />
-                    <Button onClick={addSkill} size="icon">
+                    <Button onClick={addSkill} size="icon" variant="outline" className="border-primary/20 text-primary hover:bg-primary/10">
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
@@ -823,21 +911,24 @@ const Profile = () => {
 
             {/* Availability */}
             {profile.role === "mentor" && (
-              <Card className="mentor-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Clock className="h-5 w-5 mr-2" /> Availability
+              <Card className="glass-card border-none">
+                <CardHeader className="pb-4 border-b border-border/50">
+                  <CardTitle className="flex items-center text-xl">
+                    <div className="p-2 rounded-lg bg-green-500/10 text-green-500 mr-3">
+                      <Clock className="h-5 w-5" />
+                    </div>
+                    Availability
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 pt-6">
                   <div className="space-y-2">
                     {profile.availability.length > 0 ? (
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {profile.availability.map((slot, idx) => (
-                          <div key={`${slot}-${idx}`} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                            <span className="text-sm">{slot}</span>
+                          <div key={`${slot}-${idx}`} className="flex items-center justify-between p-3 bg-background/40 hover:bg-background/60 border border-border/50 rounded-xl transition-all">
+                            <span className="text-sm font-medium">{slot}</span>
                             {isEditing && (
-                              <Button variant="ghost" size="sm" onClick={() => removeAvailability(slot)}>
+                              <Button variant="ghost" size="sm" onClick={() => removeAvailability(slot)} className="hover:text-destructive h-8 w-8 p-0">
                                 <X className="h-4 w-4" />
                               </Button>
                             )}
@@ -845,41 +936,44 @@ const Profile = () => {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">No availability set</p>
+                      <p className="text-sm text-muted-foreground italic">No availability set</p>
                     )}
                   </div>
 
                   {isEditing && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
-                      <div className="space-y-1">
-                        <Label>Day</Label>
-                        <Select value={newAvailabilityDay} onValueChange={setNewAvailabilityDay}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Monday">Monday</SelectItem>
-                            <SelectItem value="Tuesday">Tuesday</SelectItem>
-                            <SelectItem value="Wednesday">Wednesday</SelectItem>
-                            <SelectItem value="Thursday">Thursday</SelectItem>
-                            <SelectItem value="Friday">Friday</SelectItem>
-                            <SelectItem value="Saturday">Saturday</SelectItem>
-                            <SelectItem value="Sunday">Sunday</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Start</Label>
-                        <Input type="time" value={newAvailabilityStart} onChange={(e) => setNewAvailabilityStart(e.target.value)} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>End</Label>
-                        <Input type="time" value={newAvailabilityEnd} onChange={(e) => setNewAvailabilityEnd(e.target.value)} />
-                      </div>
-                      <div>
-                        <Button onClick={addAvailability} className="w-full">
-                          <Plus className="h-4 w-4 mr-1" /> Add
-                        </Button>
+                    <div className="bg-background/30 rounded-xl p-4 border border-border/50 mt-4">
+                      <Label className="text-sm font-semibold mb-3 block">Add New Slot</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Day</Label>
+                          <Select value={newAvailabilityDay} onValueChange={setNewAvailabilityDay}>
+                            <SelectTrigger className="bg-background/50 border-input/50 focus:bg-background transition-colors">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Monday">Monday</SelectItem>
+                              <SelectItem value="Tuesday">Tuesday</SelectItem>
+                              <SelectItem value="Wednesday">Wednesday</SelectItem>
+                              <SelectItem value="Thursday">Thursday</SelectItem>
+                              <SelectItem value="Friday">Friday</SelectItem>
+                              <SelectItem value="Saturday">Saturday</SelectItem>
+                              <SelectItem value="Sunday">Sunday</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Start</Label>
+                          <Input type="time" value={newAvailabilityStart} onChange={(e) => setNewAvailabilityStart(e.target.value)} className="bg-background/50 border-input/50 focus:bg-background transition-colors" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">End</Label>
+                          <Input type="time" value={newAvailabilityEnd} onChange={(e) => setNewAvailabilityEnd(e.target.value)} className="bg-background/50 border-input/50 focus:bg-background transition-colors" />
+                        </div>
+                        <div>
+                          <Button onClick={addAvailability} className="w-full btn-premium shadow-md text-white">
+                            <Plus className="h-4 w-4 mr-1" /> Add
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -888,17 +982,19 @@ const Profile = () => {
             )}
 
             {/* Languages */}
-            <Card className="mentor-card">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Languages className="h-5 w-5 mr-2" />
+            <Card className="glass-card border-none">
+              <CardHeader className="pb-4 border-b border-border/50">
+                <CardTitle className="flex items-center text-xl">
+                  <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500 mr-3">
+                    <Languages className="h-5 w-5" />
+                  </div>
                   Languages
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="flex flex-wrap gap-2 mb-4">
                   {profile.languages.map((language, index) => (
-                    <Badge key={index} variant="outline">
+                    <Badge key={index} variant="outline" className="px-3 py-1 border-orange-500/20 text-orange-600 bg-orange-500/5">
                       {language}
                     </Badge>
                   ))}
@@ -910,8 +1006,9 @@ const Profile = () => {
                       value={newLanguage}
                       onChange={(e) => setNewLanguage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && addLanguage()}
+                      className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                     />
-                    <Button onClick={addLanguage} size="icon">
+                    <Button onClick={addLanguage} size="icon" variant="outline" className="border-orange-500/20 text-orange-500 hover:bg-orange-500/10">
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
@@ -921,17 +1018,22 @@ const Profile = () => {
 
             {/* Certifications */}
             {profile.role === "mentor" && (
-              <Card className="mentor-card">
-                <CardHeader>
-                  <CardTitle>Certifications</CardTitle>
+              <Card className="glass-card border-none">
+                <CardHeader className="pb-4 border-b border-border/50">
+                  <CardTitle className="flex items-center text-xl">
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary mr-3">
+                      <Award className="h-5 w-5" />
+                    </div>
+                    Certifications
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 mb-4">
+                <CardContent className="pt-6">
+                  <div className="space-y-3 mb-4">
                     {profile.certifications.map((cert, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                        <span>{cert}</span>
+                      <div key={index} className="flex items-center justify-between p-3 bg-background/40 hover:bg-background/60 border border-border/50 rounded-xl transition-all">
+                        <span className="font-medium text-sm">{cert}</span>
                         {isEditing && (
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" className="hover:text-destructive h-8 w-8 p-0">
                             <X className="h-4 w-4" />
                           </Button>
                         )}
@@ -945,8 +1047,9 @@ const Profile = () => {
                         value={newCertification}
                         onChange={(e) => setNewCertification(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && addCertification()}
+                        className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                       />
-                      <Button onClick={addCertification} size="icon">
+                      <Button onClick={addCertification} size="icon" variant="outline" className="border-primary/20 text-primary hover:bg-primary/10">
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
@@ -957,18 +1060,21 @@ const Profile = () => {
 
             {/* Mentee: Learning Profile */}
             {profile.role !== "mentor" && (
-              <Card className="mentor-card">
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <TargetIcon className="h-5 w-5 mr-2" /> Learning Goals
+              <Card className="glass-card border-none">
+                <CardHeader className="pb-4 border-b border-border/50">
+                  <CardTitle className="flex items-center text-xl">
+                    <div className="p-2 rounded-lg bg-accent/10 text-accent mr-3">
+                      <TargetIcon className="h-5 w-5" />
+                    </div>
+                    Learning Goals
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="currentLevel">Current Level</Label>
+                <CardContent className="space-y-8 pt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="currentLevel" className="text-sm font-medium text-muted-foreground ml-1">Current Level</Label>
                       <Select value={menteeExtras.currentLevel} disabled={!isEditing} onValueChange={(v) => setMenteeExtras(prev => ({ ...prev, currentLevel: v }))}>
-                        <SelectTrigger id="currentLevel">
+                        <SelectTrigger id="currentLevel" className="bg-background/50 border-input/50 focus:bg-background transition-colors">
                           <SelectValue placeholder="Select your level" />
                         </SelectTrigger>
                         <SelectContent>
@@ -978,26 +1084,27 @@ const Profile = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label htmlFor="targetRole">Target Role</Label>
-                      <Input 
+                    <div className="space-y-2">
+                      <Label htmlFor="targetRole" className="text-sm font-medium text-muted-foreground ml-1">Target Role</Label>
+                      <Input
                         id="targetRole"
                         placeholder="e.g. Full Stack Developer"
-                        value={menteeExtras.targetRole} 
-                        disabled={!isEditing} 
-                        onChange={(e) => setMenteeExtras(prev => ({ ...prev, targetRole: e.target.value }))} 
+                        value={menteeExtras.targetRole}
+                        disabled={!isEditing}
+                        onChange={(e) => setMenteeExtras(prev => ({ ...prev, targetRole: e.target.value }))}
+                        className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                       />
                     </div>
                   </div>
-                  
+
                   <div>
-                    <Label>Learning Goals</Label>
-                    <div className="flex flex-wrap gap-2 mb-3 mt-2">
+                    <Label className="text-sm font-medium text-muted-foreground ml-1">Learning Goals</Label>
+                    <div className="flex flex-wrap gap-2 mb-3 mt-3">
                       {menteeExtras.goals.map((g) => (
-                        <Badge key={g} variant="secondary" className="text-sm">
+                        <Badge key={g} variant="secondary" className="px-3 py-1 bg-accent/10 text-accent border-accent/20 hover:bg-accent/20 transition-colors">
                           {g}
                           {isEditing && (
-                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0" onClick={() => removeGoal(g)}>
+                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0 hover:text-destructive" onClick={() => removeGoal(g)}>
                               <X className="h-3 w-3" />
                             </Button>
                           )}
@@ -1006,25 +1113,26 @@ const Profile = () => {
                     </div>
                     {isEditing && (
                       <div className="flex space-x-2">
-                        <Input 
-                          placeholder="Add learning goal (e.g. Learn React)" 
-                          value={newGoal} 
-                          onChange={(e) => setNewGoal(e.target.value)} 
-                          onKeyPress={(e) => e.key === 'Enter' && addGoal()} 
+                        <Input
+                          placeholder="Add learning goal (e.g. Learn React)"
+                          value={newGoal}
+                          onChange={(e) => setNewGoal(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && addGoal()}
+                          className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                         />
-                        <Button onClick={addGoal} size="icon"><Plus className="h-4 w-4" /></Button>
+                        <Button onClick={addGoal} size="icon" variant="outline" className="border-accent/20 text-accent hover:bg-accent/10"><Plus className="h-4 w-4" /></Button>
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <Label>Interests</Label>
-                    <div className="flex flex-wrap gap-2 mb-3 mt-2">
+                    <Label className="text-sm font-medium text-muted-foreground ml-1">Interests</Label>
+                    <div className="flex flex-wrap gap-2 mb-3 mt-3">
                       {menteeExtras.interests.map((i) => (
-                        <Badge key={i} variant="outline" className="text-sm">
+                        <Badge key={i} variant="outline" className="px-3 py-1 border-primary/20 text-primary hover:bg-primary/5 transition-colors">
                           {i}
                           {isEditing && (
-                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0" onClick={() => removeInterest(i)}>
+                            <Button variant="ghost" size="sm" className="ml-2 h-4 w-4 p-0 hover:text-destructive" onClick={() => removeInterest(i)}>
                               <X className="h-3 w-3" />
                             </Button>
                           )}
@@ -1033,13 +1141,14 @@ const Profile = () => {
                     </div>
                     {isEditing && (
                       <div className="flex space-x-2">
-                        <Input 
-                          placeholder="Add interest (e.g. Web Development)" 
-                          value={newInterest} 
-                          onChange={(e) => setNewInterest(e.target.value)} 
-                          onKeyPress={(e) => e.key === 'Enter' && addInterest()} 
+                        <Input
+                          placeholder="Add interest (e.g. Web Development)"
+                          value={newInterest}
+                          onChange={(e) => setNewInterest(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && addInterest()}
+                          className="bg-background/50 border-input/50 focus:bg-background transition-colors"
                         />
-                        <Button onClick={addInterest} size="icon"><Plus className="h-4 w-4" /></Button>
+                        <Button onClick={addInterest} size="icon" variant="outline" className="border-primary/20 text-primary hover:bg-primary/10"><Plus className="h-4 w-4" /></Button>
                       </div>
                     )}
                   </div>

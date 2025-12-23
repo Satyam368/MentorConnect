@@ -40,7 +40,7 @@ const Progress = () => {
     const loadProgressData = async () => {
       try {
         const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
-        
+
         if (!userData) {
           toast({
             title: "Session Expired",
@@ -58,7 +58,7 @@ const Progress = () => {
             const profileResponse = await fetch(API_ENDPOINTS.PROFILE_BY_EMAIL(user.email));
             if (profileResponse.ok) {
               const profileData = await profileResponse.json();
-              
+
               // Update stats from profile
               if (profileData.user.mentee) {
                 const menteeData = profileData.user.mentee;
@@ -94,7 +94,7 @@ const Progress = () => {
             const bookingsResponse = await fetch(API_ENDPOINTS.BOOKINGS_BY_USER(user.id));
             if (bookingsResponse.ok) {
               const bookingsData = await bookingsResponse.json();
-              
+
               // Filter for completed sessions and format
               const completed = (bookingsData.bookings || [])
                 .filter((booking: any) => booking.status === 'completed')
@@ -113,13 +113,13 @@ const Progress = () => {
                   skillsFocused: booking.topics || [],
                   avatar: getInitials(booking.mentorName)
                 }));
-              
+
               setSessionHistory(completed);
 
               // Filter for upcoming sessions
               const upcoming = (bookingsData.bookings || [])
-                .filter((booking: any) => 
-                  (booking.status === 'confirmed' || booking.status === 'pending') && 
+                .filter((booking: any) =>
+                  (booking.status === 'confirmed' || booking.status === 'pending') &&
                   new Date(booking.date) >= new Date()
                 )
                 .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -134,7 +134,7 @@ const Progress = () => {
                   status: booking.status,
                   avatar: getInitials(booking.mentorName)
                 }));
-              
+
               setUpcomingSessions(upcoming);
 
               // Calculate monthly progress (sessions per month)
@@ -189,37 +189,37 @@ const Progress = () => {
   const calculateMonthlyProgress = (bookings: any[]) => {
     const last6Months = [];
     const now = new Date();
-    
+
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthName = date.toLocaleDateString('en-US', { month: 'short' });
-      
+
       const sessionsInMonth = bookings.filter((booking: any) => {
         if (booking.status !== 'completed') return false;
         const bookingDate = new Date(booking.date);
-        return bookingDate.getMonth() === date.getMonth() && 
-               bookingDate.getFullYear() === date.getFullYear();
+        return bookingDate.getMonth() === date.getMonth() &&
+          bookingDate.getFullYear() === date.getFullYear();
       }).length;
-      
+
       const hoursInMonth = bookings
         .filter((booking: any) => {
           if (booking.status !== 'completed') return false;
           const bookingDate = new Date(booking.date);
-          return bookingDate.getMonth() === date.getMonth() && 
-                 bookingDate.getFullYear() === date.getFullYear();
+          return bookingDate.getMonth() === date.getMonth() &&
+            bookingDate.getFullYear() === date.getFullYear();
         })
         .reduce((sum, booking) => {
           const hours = parseInt(booking.duration) || 1;
           return sum + hours;
         }, 0);
-      
+
       last6Months.push({
         month: monthName,
         sessions: sessionsInMonth,
         hours: hoursInMonth
       });
     }
-    
+
     return last6Months;
   };
 
@@ -249,8 +249,8 @@ const Progress = () => {
   }
 
   return (
-    <div className="flex-1 bg-muted/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="flex-1 bg-muted/30 pt-20 lg:pt-24">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Learning Progress</h1>
           <p className="text-muted-foreground">Track your mentoring journey and skill development</p>
@@ -337,8 +337,8 @@ const Progress = () => {
                       </div>
                     </div>
                     <div className="relative">
-                      <ProgressBar 
-                        value={(month.sessions / Math.max(...monthlyProgress.map(m => m.sessions), 1)) * 100} 
+                      <ProgressBar
+                        value={(month.sessions / Math.max(...monthlyProgress.map(m => m.sessions), 1)) * 100}
                         className="h-3"
                       />
                     </div>
@@ -459,7 +459,7 @@ const Progress = () => {
                       {progressStats.totalSessions > 0 ? '95%' : '0%'}
                     </span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
                     <div className="flex items-center space-x-3">
                       <div className="bg-blue-500 p-2 rounded-full">
@@ -577,7 +577,7 @@ const Progress = () => {
                     <CardHeader>
                       <div className="flex justify-between items-start">
                         <CardTitle className="text-lg">{goal.title}</CardTitle>
-                        <Badge 
+                        <Badge
                           variant={goal.status === "completed" ? "default" : "secondary"}
                         >
                           {goal.status}
@@ -649,9 +649,8 @@ const Progress = () => {
                             {Array.from({ length: 5 }).map((_, i) => (
                               <Star
                                 key={i}
-                                className={`h-4 w-4 ${
-                                  i < session.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-                                }`}
+                                className={`h-4 w-4 ${i < session.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                                  }`}
                               />
                             ))}
                           </div>

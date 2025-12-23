@@ -50,26 +50,26 @@ const Notifications = () => {
       setAuthUser(JSON.parse(userData));
     }
     loadNotifications();
-    
+
     // Listen for notification updates
     const handleNotificationUpdate = () => {
       console.log('🔄 Reloading notifications due to update event');
       loadNotifications();
     };
-    
+
     window.addEventListener('notificationUpdate', handleNotificationUpdate);
     window.addEventListener('mentorNotificationUpdate', handleNotificationUpdate);
-    
+
     return () => {
       window.removeEventListener('notificationUpdate', handleNotificationUpdate);
       window.removeEventListener('mentorNotificationUpdate', handleNotificationUpdate);
     };
   }, []);
-  
+
   // Listen for real-time chat notifications
   useEffect(() => {
     if (!socket) return;
-    
+
     const handleChatNotification = (data: any) => {
       // Add new notification to the list
       const newNotification: Notification = {
@@ -85,18 +85,18 @@ const Notifications = () => {
           name: data.sender
         }
       };
-      
+
       setNotifications(prev => [newNotification, ...prev]);
     };
 
     const handleBookingStatusUpdate = (data: any) => {
       console.log('📢 Booking status updated notification:', data);
-      
+
       // Only show notification to students/mentees, not mentors
       if (authUser && authUser.role === 'mentor') {
         return; // Mentors don't need to see this notification
       }
-      
+
       // Add notification about booking status change
       const action = data.action === 'accepted' ? 'accepted' : data.action === 'declined' ? 'declined' : 'updated';
       const newNotification: Notification = {
@@ -112,16 +112,16 @@ const Notifications = () => {
           name: data.mentorName
         }
       };
-      
+
       setNotifications(prev => [newNotification, ...prev]);
-      
+
       // Trigger notification count update in Navigation
       window.dispatchEvent(new Event('notificationUpdate'));
     };
-    
+
     socket.on('new-chat-notification', handleChatNotification);
     socket.on('booking-status-updated', handleBookingStatusUpdate);
-    
+
     return () => {
       socket.off('new-chat-notification', handleChatNotification);
       socket.off('booking-status-updated', handleBookingStatusUpdate);
@@ -135,16 +135,16 @@ const Notifications = () => {
 
       const user = JSON.parse(userData);
       const mockNotifications: Notification[] = [];
-      
+
       // Fetch unread chat messages
       try {
         const chatResponse = await fetch(
           API_ENDPOINTS.CHAT_UNREAD(user.email)
         );
-        
+
         if (chatResponse.ok) {
           const unreadMessages = await chatResponse.json();
-          
+
           // Group messages by sender
           const messageBySender = new Map();
           unreadMessages.forEach((msg: any) => {
@@ -153,7 +153,7 @@ const Notifications = () => {
             }
             messageBySender.get(msg.sender).push(msg);
           });
-          
+
           // Create notifications for unread messages
           messageBySender.forEach((messages, sender) => {
             const latestMessage = messages[messages.length - 1];
@@ -178,11 +178,11 @@ const Notifications = () => {
 
       try {
         const bookingsResponse = await fetch(
-          user.role === 'mentor' 
+          user.role === 'mentor'
             ? API_ENDPOINTS.BOOKINGS_BY_MENTOR_ID(user.id)
             : API_ENDPOINTS.BOOKINGS_BY_USER(user.id)
         );
-        
+
         if (bookingsResponse.ok) {
           const bookingsData = await bookingsResponse.json();
           const bookings = bookingsData.bookings || bookingsData || [];
@@ -206,31 +206,31 @@ const Notifications = () => {
           }
 
           // Upcoming session reminders
-          const confirmedBookings = bookings.filter((b: any) => 
+          const confirmedBookings = bookings.filter((b: any) =>
             b.status === 'confirmed' && new Date(b.date) > new Date()
           );
-          
+
           confirmedBookings.forEach((booking: any) => {
             const sessionDateObj = new Date(booking.date);
             const [hours, minutes] = (booking.time || '00:00').split(':');
             const sessionDateTime = new Date(sessionDateObj);
             sessionDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-            
+
             const now = new Date();
             const minutesUntil = Math.floor((sessionDateTime.getTime() - now.getTime()) / (1000 * 60));
             const hoursUntil = Math.floor(minutesUntil / 60);
             const daysUntil = Math.floor(hoursUntil / 24);
-            
+
             // For mentees: show reminder if session is within 30 minutes
             // For mentors: show reminder if session is within 2 days
-            const shouldShowReminder = user.role === 'student' 
+            const shouldShowReminder = user.role === 'student'
               ? (minutesUntil > 0 && minutesUntil <= 30)
               : (daysUntil <= 2);
-            
+
             if (shouldShowReminder) {
               let reminderMessage = '';
               let priority: 'low' | 'normal' | 'high' = 'normal';
-              
+
               if (minutesUntil <= 30 && minutesUntil > 0) {
                 reminderMessage = `Session with ${user.role === 'mentor' ? (booking.user?.name || 'student') : booking.mentorName} starts in ${minutesUntil} minute${minutesUntil !== 1 ? 's' : ''}`;
                 priority = 'high';
@@ -240,7 +240,7 @@ const Notifications = () => {
               } else {
                 reminderMessage = `Session with ${user.role === 'mentor' ? (booking.user?.name || 'student') : booking.mentorName} in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`;
               }
-              
+
               mockNotifications.push({
                 id: `reminder-${booking._id}`,
                 type: 'reminder',
@@ -257,10 +257,10 @@ const Notifications = () => {
 
           // Completed sessions needing rating
           if (user.role === 'student') {
-            const completedUnrated = bookings.filter((b: any) => 
+            const completedUnrated = bookings.filter((b: any) =>
               b.status === 'completed' && !b.rating
             ).slice(0, 2);
-            
+
             completedUnrated.forEach((booking: any) => {
               mockNotifications.push({
                 id: `rate-${booking._id}`,
@@ -278,10 +278,10 @@ const Notifications = () => {
 
           // New ratings for mentors
           if (user.role === 'mentor') {
-            const recentRatings = bookings.filter((b: any) => 
+            const recentRatings = bookings.filter((b: any) =>
               b.status === 'completed' && b.rating && b.rating > 0
             ).slice(0, 3);
-            
+
             recentRatings.forEach((booking: any) => {
               mockNotifications.push({
                 id: `rating-received-${booking._id}`,
@@ -312,14 +312,14 @@ const Notifications = () => {
         priority: 'low'
       });
 
-      mockNotifications.sort((a, b) => 
+      mockNotifications.sort((a, b) =>
         new Date(b.time).getTime() - new Date(a.time).getTime()
       );
 
       // Filter out deleted notifications and apply read status from localStorage
       const readNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
       const deletedNotifications = JSON.parse(localStorage.getItem('deletedNotifications') || '[]');
-      
+
       const filteredNotifications = mockNotifications
         .filter(notif => !deletedNotifications.includes(notif.id))
         .map(notif => ({
@@ -338,14 +338,14 @@ const Notifications = () => {
   const handleMarkAsRead = (id: string) => {
     setNotifications(prev => {
       const updated = prev.map(notif => notif.id === id ? { ...notif, read: true } : notif);
-      
+
       // Persist read status to localStorage
       const readNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
       if (!readNotifications.includes(id)) {
         readNotifications.push(id);
         localStorage.setItem('readNotifications', JSON.stringify(readNotifications));
       }
-      
+
       return updated;
     });
   };
@@ -353,11 +353,11 @@ const Notifications = () => {
   const handleMarkAllAsRead = () => {
     setNotifications(prev => {
       const updated = prev.map(notif => ({ ...notif, read: true }));
-      
+
       // Persist all read statuses to localStorage
       const readNotifications = updated.map(notif => notif.id);
       localStorage.setItem('readNotifications', JSON.stringify(readNotifications));
-      
+
       return updated;
     });
     toast({ title: "All marked as read" });
@@ -365,19 +365,19 @@ const Notifications = () => {
 
   const handleDelete = (id: string) => {
     setNotifications(prev => prev.filter(notif => notif.id !== id));
-    
+
     // Also remove from read notifications list
     const readNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
     const updated = readNotifications.filter((notifId: string) => notifId !== id);
     localStorage.setItem('readNotifications', JSON.stringify(updated));
-    
+
     // Add to deleted notifications list
     const deletedNotifications = JSON.parse(localStorage.getItem('deletedNotifications') || '[]');
     if (!deletedNotifications.includes(id)) {
       deletedNotifications.push(id);
       localStorage.setItem('deletedNotifications', JSON.stringify(deletedNotifications));
     }
-    
+
     toast({ title: "Notification deleted" });
   };
 
@@ -386,7 +386,7 @@ const Notifications = () => {
     const deletedNotifications = notifications.map(n => n.id);
     localStorage.setItem('deletedNotifications', JSON.stringify(deletedNotifications));
     localStorage.setItem('readNotifications', JSON.stringify([]));
-    
+
     setNotifications([]);
     toast({ title: "All notifications cleared" });
   };
@@ -418,7 +418,7 @@ const Notifications = () => {
     const time = new Date(timeString);
     const now = new Date();
     const seconds = Math.floor((now.getTime() - time.getTime()) / 1000);
-    
+
     if (seconds < 60) return 'Just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -450,7 +450,7 @@ const Notifications = () => {
   }
 
   return (
-    <div className="flex-1 bg-muted/30">
+    <div className="flex-1 bg-muted/30 pt-24">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <div className="flex items-center space-x-3 mb-2">
@@ -528,22 +528,21 @@ const Notifications = () => {
                   <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
                   <h3 className="text-lg font-medium mb-2">No notifications</h3>
                   <p className="text-sm text-muted-foreground">
-                    {filter === 'unread' 
+                    {filter === 'unread'
                       ? "You're all caught up! No unread notifications."
                       : filter === 'read'
-                      ? "No read notifications to show."
-                      : "You don't have any notifications yet."}
+                        ? "No read notifications to show."
+                        : "You don't have any notifications yet."}
                   </p>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-3">
                 {filteredNotifications.map((notification) => (
-                  <Card 
-                    key={notification.id} 
-                    className={`hover:shadow-md transition-shadow cursor-pointer ${
-                      !notification.read ? 'border-l-4 border-l-primary bg-primary/5' : ''
-                    }`}
+                  <Card
+                    key={notification.id}
+                    className={`hover:shadow-md transition-shadow cursor-pointer ${!notification.read ? 'border-l-4 border-l-primary bg-primary/5' : ''
+                      }`}
                     onClick={() => {
                       if (!notification.read) handleMarkAsRead(notification.id);
                       if (notification.actionUrl) window.location.href = notification.actionUrl;

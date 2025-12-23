@@ -54,7 +54,7 @@ const StudentDashboard = () => {
   const [newGoal, setNewGoal] = useState("");
   const [newInterest, setNewInterest] = useState("");
   const [newPortfolioLink, setNewPortfolioLink] = useState("");
-  
+
   // Socket connection
   const { socket } = useSocket(currentUser?.email);
 
@@ -63,7 +63,7 @@ const StudentDashboard = () => {
     const loadDashboardData = async () => {
       try {
         const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
-        
+
         if (!userData) {
           toast({
             title: "Session Expired",
@@ -75,7 +75,7 @@ const StudentDashboard = () => {
 
         const user = JSON.parse(userData);
         setCurrentUser(user);
-        
+
         // Set basic user info
         setStudentProfile(prev => ({
           ...prev,
@@ -90,7 +90,7 @@ const StudentDashboard = () => {
             const profileResponse = await fetch(API_ENDPOINTS.PROFILE_BY_EMAIL(user.email));
             if (profileResponse.ok) {
               const profileData = await profileResponse.json();
-              
+
               // Update student profile with backend data
               setStudentProfile(prev => ({
                 ...prev,
@@ -125,17 +125,17 @@ const StudentDashboard = () => {
             const bookingsResponse = await fetch(API_ENDPOINTS.BOOKINGS_BY_USER(user.id));
             if (bookingsResponse.ok) {
               const bookingsData = await bookingsResponse.json();
-              
+
               // Filter for upcoming sessions (confirmed status and future dates)
               const now = new Date();
               const upcoming = bookingsData.bookings
-                ?.filter((booking: any) => 
-                  booking.status === 'confirmed' && 
+                ?.filter((booking: any) =>
+                  booking.status === 'confirmed' &&
                   new Date(booking.date) >= now
                 )
                 .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
                 .slice(0, 5) || [];
-              
+
               setUpcomingSessions(upcoming);
             }
           } catch (bookingError) {
@@ -172,12 +172,12 @@ const StudentDashboard = () => {
   // Load chat requests
   const loadChatRequests = async () => {
     if (!currentUser?.email) return;
-    
+
     try {
       const response = await fetch(API_ENDPOINTS.CHAT_REQUEST_ALL(currentUser.email));
       if (response.ok) {
         const data = await response.json();
-        
+
         // Enrich requests with user details
         const enrichedRequests = await Promise.all(
           data.requests.map(async (req: any) => {
@@ -197,7 +197,7 @@ const StudentDashboard = () => {
             return req;
           })
         );
-        
+
         setChatRequests(enrichedRequests);
       }
     } catch (error) {
@@ -218,11 +218,11 @@ const StudentDashboard = () => {
 
     const handleChatRequestResponse = (data: any) => {
       console.log('Chat request response received:', data);
-      
+
       // Show notification
       toast({
         title: data.status === 'approved' ? 'Request Approved!' : 'Request Declined',
-        description: data.status === 'approved' 
+        description: data.status === 'approved'
           ? `${data.mentorName} has approved your chat request. You can now start messaging!`
           : `${data.mentorName} has declined your chat request.`,
         variant: data.status === 'approved' ? 'default' : 'destructive'
@@ -269,7 +269,7 @@ const StudentDashboard = () => {
           title: "Profile updated successfully!",
           description: "Your changes have been saved.",
         });
-        
+
         // Update localStorage with the new user data
         const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
         if (userData) {
@@ -278,7 +278,7 @@ const StudentDashboard = () => {
           localStorage.setItem('authUser', JSON.stringify(updatedUser));
           localStorage.setItem('user', JSON.stringify(updatedUser));
         }
-        
+
         setIsProfileDialogOpen(false);
       } else {
         const errorData = await response.json();
@@ -353,337 +353,29 @@ const StudentDashboard = () => {
       .split(' ')
       .map(n => n[0])
       .join('')
-      .toUpperCase()
-      .slice(0, 2);
+      .toUpperCase();
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 bg-muted/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading your dashboard...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex-1 bg-muted/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">
-                Welcome back, {studentProfile.name || "Student"}! 👋
-              </h1>
-              <p className="text-muted-foreground">
-                Continue your learning journey with amazing mentors
-              </p>
-            </div>
-            <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2">
-                  <Edit3 className="h-4 w-4" />
-                  Update Profile
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Update Your Profile</DialogTitle>
-                  <DialogDescription>
-                    Keep your information up to date to get better mentor recommendations
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                  {/* Basic Information */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Basic Information</h3>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
-                      <Input
-                        id="name"
-                        value={studentProfile.name}
-                        onChange={(e) => setStudentProfile(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Your full name"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={studentProfile.email}
-                        onChange={(e) => setStudentProfile(prev => ({ ...prev, email: e.target.value }))}
-                        placeholder="your.email@example.com"
-                        disabled
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        value={studentProfile.phone}
-                        onChange={(e) => setStudentProfile(prev => ({ ...prev, phone: e.target.value }))}
-                        placeholder="Your phone number"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="location">Location</Label>
-                      <Input
-                        id="location"
-                        value={studentProfile.location}
-                        onChange={(e) => setStudentProfile(prev => ({ ...prev, location: e.target.value }))}
-                        placeholder="City, Country"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="bio">Bio</Label>
-                      <Textarea
-                        id="bio"
-                        value={studentProfile.bio}
-                        onChange={(e) => setStudentProfile(prev => ({ ...prev, bio: e.target.value }))}
-                        placeholder="Tell us about yourself..."
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Learning Goals & Interests */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Learning Profile</h3>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="targetRole">Target Role</Label>
-                      <Input
-                        id="targetRole"
-                        value={studentProfile.targetRole}
-                        onChange={(e) => setStudentProfile(prev => ({ ...prev, targetRole: e.target.value }))}
-                        placeholder="e.g., Full-Stack Developer"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="currentLevel">Current Level</Label>
-                      <Select
-                        value={studentProfile.currentLevel}
-                        onValueChange={(value) => setStudentProfile(prev => ({ ...prev, currentLevel: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Beginner">Beginner</SelectItem>
-                          <SelectItem value="Junior">Junior</SelectItem>
-                          <SelectItem value="Mid">Mid</SelectItem>
-                          <SelectItem value="Senior">Senior</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="learningStyle">Learning Style</Label>
-                      <Input
-                        id="learningStyle"
-                        value={studentProfile.learningStyle}
-                        onChange={(e) => setStudentProfile(prev => ({ ...prev, learningStyle: e.target.value }))}
-                        placeholder="e.g., Hands-on Projects, Visual Learning"
-                      />
-                    </div>
-
-                    {/* Skills */}
-                    <div className="space-y-2">
-                      <Label>Skills</Label>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {studentProfile.skills.map((skill, index) => (
-                          <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeSkill(skill)}>
-                            {skill} ✕
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Input
-                          value={newSkill}
-                          onChange={(e) => setNewSkill(e.target.value)}
-                          placeholder="Add a skill"
-                          onKeyPress={(e) => e.key === 'Enter' && addSkill()}
-                        />
-                        <Button type="button" onClick={addSkill} size="sm">Add</Button>
-                      </div>
-                    </div>
-
-                    {/* Goals */}
-                    <div className="space-y-2">
-                      <Label>Learning Goals</Label>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {studentProfile.goals.map((goal, index) => (
-                          <Badge key={index} variant="outline" className="cursor-pointer" onClick={() => removeGoal(goal)}>
-                            {goal} ✕
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Input
-                          value={newGoal}
-                          onChange={(e) => setNewGoal(e.target.value)}
-                          placeholder="Add a learning goal"
-                          onKeyPress={(e) => e.key === 'Enter' && addGoal()}
-                        />
-                        <Button type="button" onClick={addGoal} size="sm">Add</Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Interests and Portfolio Links - Full Width */}
-                <div className="space-y-4">
-                  {/* Interests */}
-                  <div className="space-y-2">
-                    <Label>Interests</Label>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {studentProfile.interests.map((interest, index) => (
-                        <Badge key={index} variant="outline" className="cursor-pointer" onClick={() => removeInterest(interest)}>
-                          {interest} ✕
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        value={newInterest}
-                        onChange={(e) => setNewInterest(e.target.value)}
-                        placeholder="Add an interest"
-                        onKeyPress={(e) => e.key === 'Enter' && addInterest()}
-                      />
-                      <Button type="button" onClick={addInterest} size="sm">Add</Button>
-                    </div>
-                  </div>
-
-                  {/* Portfolio Links */}
-                  <div className="space-y-2">
-                    <Label>Portfolio Links</Label>
-                    <div className="space-y-2 mb-2">
-                      {studentProfile.portfolioLinks.map((link, index) => (
-                        <div key={index} className="flex items-center gap-2 p-2 bg-muted rounded">
-                          <span className="flex-1 text-sm">{link}</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removePortfolioLink(link)}
-                          >
-                            ✕
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        value={newPortfolioLink}
-                        onChange={(e) => setNewPortfolioLink(e.target.value)}
-                        placeholder="Add portfolio link (GitHub, personal website, etc.)"
-                        onKeyPress={(e) => e.key === 'Enter' && addPortfolioLink()}
-                      />
-                      <Button type="button" onClick={addPortfolioLink} size="sm">Add</Button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsProfileDialogOpen(false)}
-                    disabled={isSaving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSaveProfile} disabled={isSaving}>
-                    {isSaving ? "Saving..." : "Save Changes"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+    <div className="min-h-screen bg-background pb-8 pt-24">
+      <div className="container mx-auto p-6 space-y-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Student Dashboard</h1>
+            <p className="text-muted-foreground mt-2">Manage your learning journey and connect with mentors</p>
           </div>
+          <Button onClick={() => setIsProfileDialogOpen(true)}>
+            <Edit3 className="mr-2 h-4 w-4" /> Edit Profile
+          </Button>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="mentor-card">
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="bg-primary/10 p-3 rounded-full">
-                  <BookOpen className="h-6 w-6 text-primary" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">{stats.completedSessions}</p>
-                  <p className="text-muted-foreground text-sm">Sessions Completed</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="mentor-card">
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="bg-secondary/10 p-3 rounded-full">
-                  <MessageCircle className="h-6 w-6 text-secondary" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">{stats.activeMentors}</p>
-                  <p className="text-muted-foreground text-sm">Active Mentors</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="mentor-card">
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="bg-accent/20 p-3 rounded-full">
-                  <Clock className="h-6 w-6 text-primary" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">{stats.hoursLearned}</p>
-                  <p className="text-muted-foreground text-sm">Hours Learned</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="mentor-card">
-            <CardContent className="pt-6">
-              <div className="flex items-center">
-                <div className="bg-yellow-100 p-3 rounded-full">
-                  <Star className="h-6 w-6 text-yellow-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-2xl font-bold text-card-foreground">{stats.averageRating.toFixed(1)}</p>
-                  <p className="text-muted-foreground text-sm">Avg Rating</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Profile Summary */}
-        <div className="mb-8">
-          <Card className="mentor-card">
+        <div className="space-y-6">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <User className="h-5 w-5 mr-2 text-primary" />
-                Your Profile Summary
+              <CardTitle className="flex items-center justify-between">
+                <span>My Profile</span>
               </CardTitle>
-            </CardHeader>
+            </CardHeader >
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
@@ -757,122 +449,123 @@ const StudentDashboard = () => {
                 </div>
               </div>
             </CardContent>
-          </Card>
-        </div>
+          </Card >
+        </div >
 
         {/* Chat Requests Section */}
-        {chatRequests.length > 0 && (
-          <Card className="mentor-card">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <MessageSquare className="h-5 w-5 mr-2 text-primary" />
-                Chat Requests
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {chatRequests
-                  .filter(req => req.sender === currentUser?.email)
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .slice(0, 5)
-                  .map((request) => (
-                    <div 
-                      key={request._id} 
-                      className={`p-4 rounded-lg border-l-4 ${
-                        request.status === 'approved' 
-                          ? 'border-l-green-500 bg-green-50 dark:bg-green-950/20' 
+        {
+          chatRequests.length > 0 && (
+            <Card className="mentor-card">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <MessageSquare className="h-5 w-5 mr-2 text-primary" />
+                  Chat Requests
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {chatRequests
+                    .filter(req => req.sender === currentUser?.email)
+                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    .slice(0, 5)
+                    .map((request) => (
+                      <div
+                        key={request._id}
+                        className={`p-4 rounded-lg border-l-4 ${request.status === 'approved'
+                          ? 'border-l-green-500 bg-green-50 dark:bg-green-950/20'
                           : request.status === 'declined'
-                          ? 'border-l-red-500 bg-red-50 dark:bg-red-950/20'
-                          : 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-3 flex-1">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold flex-shrink-0">
-                            {request.otherUser?.name ? getInitials(request.otherUser.name) : 'M'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="font-medium text-card-foreground">
-                                {request.otherUser?.name || 'Mentor'}
-                              </p>
-                              <Badge 
-                                variant={
-                                  request.status === 'approved' 
-                                    ? 'default' 
-                                    : request.status === 'declined'
-                                    ? 'destructive'
-                                    : 'secondary'
-                                }
-                                className="text-xs"
-                              >
-                                {request.status === 'approved' && <Check className="h-3 w-3 mr-1" />}
-                                {request.status === 'declined' && <X className="h-3 w-3 mr-1" />}
-                                {request.status === 'pending' && <AlertCircle className="h-3 w-3 mr-1" />}
-                                {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                              </Badge>
+                            ? 'border-l-red-500 bg-red-50 dark:bg-red-950/20'
+                            : 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/20'
+                          }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start space-x-3 flex-1">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold flex-shrink-0">
+                              {request.otherUser?.name ? getInitials(request.otherUser.name) : 'M'}
                             </div>
-                            <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                              {request.message}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Sent {new Date(request.createdAt).toLocaleDateString('en-US', { 
-                                month: 'short', 
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-medium text-card-foreground">
+                                  {request.otherUser?.name || 'Mentor'}
+                                </p>
+                                <Badge
+                                  variant={
+                                    request.status === 'approved'
+                                      ? 'default'
+                                      : request.status === 'declined'
+                                        ? 'destructive'
+                                        : 'secondary'
+                                  }
+                                  className="text-xs"
+                                >
+                                  {request.status === 'approved' && <Check className="h-3 w-3 mr-1" />}
+                                  {request.status === 'declined' && <X className="h-3 w-3 mr-1" />}
+                                  {request.status === 'pending' && <AlertCircle className="h-3 w-3 mr-1" />}
+                                  {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                                {request.message}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Sent {new Date(request.createdAt).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex-shrink-0 ml-3">
-                          {request.status === 'approved' && (
-                            <Link to={`/chat?user=${encodeURIComponent(request.receiver)}`}>
-                              <Button size="sm" variant="hero">
-                                <MessageCircle className="h-4 w-4 mr-1" />
-                                Open Chat
+                          <div className="flex-shrink-0 ml-3">
+                            {request.status === 'approved' && (
+                              <Link to={`/chat?user=${encodeURIComponent(request.receiver)}`}>
+                                <Button size="sm" variant="hero">
+                                  <MessageCircle className="h-4 w-4 mr-1" />
+                                  Open Chat
+                                </Button>
+                              </Link>
+                            )}
+                            {request.status === 'declined' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  // Could implement resend functionality here
+                                  toast({
+                                    title: "Feature Coming Soon",
+                                    description: "Request resend feature will be available soon."
+                                  });
+                                }}
+                              >
+                                Resend
                               </Button>
-                            </Link>
-                          )}
-                          {request.status === 'declined' && (
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                // Could implement resend functionality here
-                                toast({
-                                  title: "Feature Coming Soon",
-                                  description: "Request resend feature will be available soon."
-                                });
-                              }}
-                            >
-                              Resend
-                            </Button>
-                          )}
-                          {request.status === 'pending' && (
-                            <Badge variant="secondary" className="text-xs">
-                              <Clock className="h-3 w-3 mr-1" />
-                              Waiting
-                            </Badge>
-                          )}
+                            )}
+                            {request.status === 'pending' && (
+                              <Badge variant="secondary" className="text-xs">
+                                <Clock className="h-3 w-3 mr-1" />
+                                Waiting
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
+                    ))}
+
+                  {chatRequests.filter(req => req.sender === currentUser?.email).length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No chat requests sent yet</p>
+                      <Link to="/mentors">
+                        <Button variant="hero" className="mt-4">Find Mentors</Button>
+                      </Link>
                     </div>
-                  ))}
-                
-                {chatRequests.filter(req => req.sender === currentUser?.email).length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No chat requests sent yet</p>
-                    <Link to="/mentors">
-                      <Button variant="hero" className="mt-4">Find Mentors</Button>
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        }
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Upcoming Sessions & Available Mentors */}
@@ -918,14 +611,14 @@ const StudentDashboard = () => {
                       <div className="border-t pt-4"></div>
                     </>
                   )}
-                  
+
                   {upcomingSessions.length === 0 && (
                     <div className="text-center py-3 mb-4 bg-muted/30 rounded-lg">
                       <p className="text-muted-foreground text-sm mb-1">No upcoming sessions</p>
                       <p className="text-xs text-muted-foreground">Book a session with available mentors below</p>
                     </div>
                   )}
-                  
+
                   {/* Always show available mentors */}
                   <div>
                     <h3 className="text-sm font-semibold mb-3 text-muted-foreground flex items-center">
@@ -1082,8 +775,8 @@ const StudentDashboard = () => {
             </CardContent>
           </Card>
         </div>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 

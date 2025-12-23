@@ -36,7 +36,7 @@ const Requests = () => {
 
   // Get current user first
   const currentUser = JSON.parse(localStorage.getItem('authUser') || localStorage.getItem('user') || '{}');
-  
+
   // Initialize socket with currentUser
   const { socket } = useSocket(currentUser?.email);
 
@@ -56,7 +56,7 @@ const Requests = () => {
   const fetchRequests = async () => {
     try {
       if (!currentUser.id) return;
-      
+
       const response = await fetch(API_ENDPOINTS.BOOKINGS_BY_USER(currentUser.id));
       if (response.ok) {
         const data = await response.json();
@@ -106,12 +106,12 @@ const Requests = () => {
 
     const handleBookingStatusUpdate = (data: any) => {
       console.log('📢 Booking status updated:', data);
-      
+
       // Only process for mentees/students, not mentors
       if (currentUser.role === 'mentor') {
         return; // Mentors use this page differently
       }
-      
+
       // Show notification to mentee
       const action = data.action === 'accepted' ? 'accepted' : 'declined';
       toast({
@@ -126,12 +126,12 @@ const Requests = () => {
 
     const handleNewSessionRequest = (data: any) => {
       console.log('📢 New session request received:', data);
-      
+
       // Only process for mentors
       if (currentUser.role !== 'mentor') {
         return;
       }
-      
+
       // Show notification to mentor
       toast({
         title: "New Session Request!",
@@ -140,7 +140,7 @@ const Requests = () => {
 
       // Refresh the requests list
       fetchRequests();
-      
+
       // Dispatch event to update notification count
       window.dispatchEvent(new Event('notificationUpdate'));
     };
@@ -158,7 +158,7 @@ const Requests = () => {
   // Handle form submission for new request
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!currentUser.id) {
       toast({
         title: "Error",
@@ -280,14 +280,14 @@ const Requests = () => {
   }
 
   return (
-    <div className="flex-1 bg-muted/30">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="flex-1 bg-muted/30 pt-20 lg:pt-24">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground mb-2">Session Requests</h1>
             <p className="text-muted-foreground">Track the status of your mentoring requests</p>
           </div>
-          
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
@@ -302,7 +302,7 @@ const Requests = () => {
               <form onSubmit={handleCreateRequest} className="space-y-4">
                 <div>
                   <Label htmlFor="mentorName">Mentor</Label>
-                  <Select value={formData.mentorName} onValueChange={(value) => setFormData({...formData, mentorName: value})}>
+                  <Select value={formData.mentorName} onValueChange={(value) => setFormData({ ...formData, mentorName: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a mentor" />
                     </SelectTrigger>
@@ -318,7 +318,7 @@ const Requests = () => {
 
                 <div>
                   <Label htmlFor="sessionType">Session Type</Label>
-                  <Select value={formData.sessionType} onValueChange={(value) => setFormData({...formData, sessionType: value})}>
+                  <Select value={formData.sessionType} onValueChange={(value) => setFormData({ ...formData, sessionType: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select session type" />
                     </SelectTrigger>
@@ -333,7 +333,7 @@ const Requests = () => {
 
                 <div>
                   <Label htmlFor="duration">Duration</Label>
-                  <Select value={formData.duration} onValueChange={(value) => setFormData({...formData, duration: value})}>
+                  <Select value={formData.duration} onValueChange={(value) => setFormData({ ...formData, duration: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select duration" />
                     </SelectTrigger>
@@ -353,7 +353,7 @@ const Requests = () => {
                       id="date"
                       type="date"
                       value={formData.date}
-                      onChange={(e) => setFormData({...formData, date: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                       min={new Date().toISOString().split('T')[0]}
                       required
                     />
@@ -364,7 +364,7 @@ const Requests = () => {
                       id="time"
                       type="time"
                       value={formData.time}
-                      onChange={(e) => setFormData({...formData, time: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                       required
                     />
                   </div>
@@ -378,7 +378,7 @@ const Requests = () => {
                     min="0"
                     step="0.01"
                     value={formData.cost}
-                    onChange={(e) => setFormData({...formData, cost: parseFloat(e.target.value) || 0})}
+                    onChange={(e) => setFormData({ ...formData, cost: parseFloat(e.target.value) || 0 })}
                     placeholder="Enter session cost"
                   />
                 </div>
@@ -388,7 +388,7 @@ const Requests = () => {
                   <Textarea
                     id="notes"
                     value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     placeholder="Any additional notes or topics you'd like to discuss..."
                     rows={3}
                   />
@@ -422,22 +422,21 @@ const Requests = () => {
             </Card>
           ) : (
             requests.map((request) => (
-              <Card 
-                key={request._id} 
-                className={`mentor-card ${
-                  request.status === 'confirmed' ? 'border-l-4 border-l-green-500 bg-green-50/50' : 
-                  request.status === 'cancelled' ? 'opacity-60' : ''
-                }`}
+              <Card
+                key={request._id}
+                className={`mentor-card ${request.status === 'confirmed' ? 'border-l-4 border-l-green-500 bg-green-50/50' :
+                    request.status === 'cancelled' ? 'opacity-60' : ''
+                  }`}
               >
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">{request.mentorName}</CardTitle>
                     <div className="flex items-center gap-2">
                       <Badge variant={getStatusBadgeVariant(request.status)}>
-                        {request.status === 'confirmed' ? '✓ Confirmed' : 
-                         request.status === 'pending' ? 'Pending' :
-                         request.status === 'cancelled' ? 'Declined' : 
-                         request.status}
+                        {request.status === 'confirmed' ? '✓ Confirmed' :
+                          request.status === 'pending' ? 'Pending' :
+                            request.status === 'cancelled' ? 'Declined' :
+                              request.status}
                       </Badge>
                       {(request.status === 'pending' || request.status === 'cancelled') && (
                         <Button
@@ -455,9 +454,9 @@ const Requests = () => {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-muted-foreground mb-4">
                     <div className="flex items-center">
-                      {request.sessionType === 'Video Call' ? <Video className="h-4 w-4 mr-2" /> : 
-                       request.sessionType === 'Phone Call' ? <Phone className="h-4 w-4 mr-2" /> : 
-                       <MessageSquare className="h-4 w-4 mr-2" />} 
+                      {request.sessionType === 'Video Call' ? <Video className="h-4 w-4 mr-2" /> :
+                        request.sessionType === 'Phone Call' ? <Phone className="h-4 w-4 mr-2" /> :
+                          <MessageSquare className="h-4 w-4 mr-2" />}
                       {request.sessionType}
                     </div>
                     <div className="flex items-center">
@@ -470,7 +469,7 @@ const Requests = () => {
                       <span className="font-medium">${request.cost}</span>
                     </div>
                   </div>
-                  
+
                   {request.notes && (
                     <div className="mb-4 p-3 bg-muted/50 rounded-md">
                       <p className="text-sm text-muted-foreground">

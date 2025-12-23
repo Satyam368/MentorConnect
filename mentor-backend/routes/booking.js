@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const { 
-  createBooking, 
-  getBookings, 
+const {
+  createBooking,
+  getBookings,
   getAllBookings,
   getBookingById,
   updateBooking,
@@ -14,6 +14,10 @@ const {
   rateSession,
   calculateStreak
 } = require("../controllers/bookingController");
+const authMiddleware = require("../middleware/authMiddleware");
+
+// Protect all booking routes
+router.use(authMiddleware);
 
 // Create booking
 router.post("/", createBooking);

@@ -64,16 +64,16 @@ const Chat = () => {
     // Fetch mentor details and chat history
     const fetchChatData = async () => {
       if (!currentUser || !mentorId) return;
-      
+
       try {
         setIsLoading(true);
-        
+
         // Check chat permission first
         const permissionResponse = await fetch(
           API_ENDPOINTS.CHAT_PERMISSION_CHECK(currentUser.email, mentorId)
         );
         const permissionData = await permissionResponse.json();
-        
+
         if (!permissionData.canChat) {
           setChatAccessDenied(true);
           setIsLoading(false);
@@ -89,7 +89,7 @@ const Chat = () => {
           }, 2000);
           return;
         }
-        
+
         // Fetch mentor details
         const mentorResponse = await fetch(API_ENDPOINTS.PROFILE_BY_EMAIL(mentorId));
         if (mentorResponse.ok) {
@@ -104,7 +104,7 @@ const Chat = () => {
         if (chatResponse.ok) {
           const chatData = await chatResponse.json();
           setMessages(chatData);
-          
+
           // Mark messages as read
           const conversationId = [currentUser.email, mentorId].sort().join('_');
           await fetch(API_ENDPOINTS.CHAT_MARK_READ, {
@@ -115,7 +115,7 @@ const Chat = () => {
               userId: currentUser.email
             })
           });
-          
+
           // Trigger notification count update
           window.dispatchEvent(new Event('notificationUpdate'));
         }
@@ -148,8 +148,8 @@ const Chat = () => {
       console.log('📨 Received message:', data);
       setMessages((prev) => {
         // Check if message already exists
-        const exists = prev.some(m => 
-          (m._id && m._id === data._id) || 
+        const exists = prev.some(m =>
+          (m._id && m._id === data._id) ||
           (m.id && m.id === data.id)
         );
         if (exists) {
@@ -247,13 +247,13 @@ const Chat = () => {
       content: message.trim(),
       timestamp: new Date().toISOString()
     };
-    
+
     console.log('📤 Sending message:', newMessage);
-    
+
     // Optimistically add message to UI
     setMessages((prev) => [...prev, newMessage]);
     setMessage("");
-    
+
     // Send via socket
     socket.emit('send-message', {
       sender: currentUser.email,
@@ -268,7 +268,7 @@ const Chat = () => {
 
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessage(e.target.value);
-    
+
     if (!socket || !mentorId) return;
 
     // Send typing indicator
@@ -301,7 +301,7 @@ const Chat = () => {
 
   return (
     <div className="flex-1 bg-muted/30">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 pt-24">
         {/* Back Button */}
         <div className="mb-4">
           <Button
@@ -328,7 +328,7 @@ const Chat = () => {
             </AlertDescription>
           </Alert>
         )}
-        
+
         {/* Access Denied Message */}
         {chatAccessDenied && (
           <Alert className="mb-6" variant="destructive">
@@ -371,7 +371,7 @@ const Chat = () => {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
                       <Button variant="ghost" size="icon" disabled>
                         <Phone className="h-4 w-4" />
@@ -386,156 +386,154 @@ const Chat = () => {
                   </div>
                 </CardHeader>
 
-              {/* Messages */}
-              <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
-                {messages.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-muted-foreground">No messages yet. Start a conversation!</p>
-                  </div>
-                ) : (
-                  <>
-                    {messages.map((msg, index) => {
-                      const isCurrentUser = msg.sender === currentUser?.email;
-                      return (
-                        <div
-                          key={msg._id || msg.id || index}
-                          className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div className={`flex items-start space-x-2 max-w-[80%] ${isCurrentUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                {/* Messages */}
+                <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
+                  {messages.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-muted-foreground">No messages yet. Start a conversation!</p>
+                    </div>
+                  ) : (
+                    <>
+                      {messages.map((msg, index) => {
+                        const isCurrentUser = msg.sender === currentUser?.email;
+                        return (
+                          <div
+                            key={msg._id || msg.id || index}
+                            className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div className={`flex items-start space-x-2 max-w-[80%] ${isCurrentUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback className="text-sm">
+                                  {isCurrentUser ? 'ME' : (mentor ? getInitials(mentor.name) : '??')}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className={`p-3 rounded-lg ${isCurrentUser
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted'
+                                }`}>
+                                <p className="text-sm leading-relaxed">{msg.content}</p>
+                                <p className={`text-xs mt-1 opacity-70 ${isCurrentUser ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                                  }`}>
+                                  {formatTimestamp(msg.timestamp)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {isTyping && (
+                        <div className="flex justify-start">
+                          <div className="flex items-start space-x-2 max-w-[80%]">
                             <Avatar className="h-8 w-8">
                               <AvatarFallback className="text-sm">
-                                {isCurrentUser ? 'ME' : (mentor ? getInitials(mentor.name) : '??')}
+                                {mentor ? getInitials(mentor.name) : '??'}
                               </AvatarFallback>
                             </Avatar>
-                            <div className={`p-3 rounded-lg ${
-                              isCurrentUser
-                                ? 'bg-primary text-primary-foreground' 
-                                : 'bg-muted'
-                            }`}>
-                              <p className="text-sm leading-relaxed">{msg.content}</p>
-                              <p className={`text-xs mt-1 opacity-70 ${
-                                isCurrentUser ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                              }`}>
-                                {formatTimestamp(msg.timestamp)}
-                              </p>
+                            <div className="p-3 rounded-lg bg-muted">
+                              <div className="flex space-x-1">
+                                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      );
-                    })}
-                    {isTyping && (
-                      <div className="flex justify-start">
-                        <div className="flex items-start space-x-2 max-w-[80%]">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="text-sm">
-                              {mentor ? getInitials(mentor.name) : '??'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="p-3 rounded-lg bg-muted">
-                            <div className="flex space-x-1">
-                              <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                              <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <div ref={messagesEndRef} />
-                  </>
-                )}
-              </CardContent>
+                      )}
+                      <div ref={messagesEndRef} />
+                    </>
+                  )}
+                </CardContent>
 
-              {/* Message Input */}
-              <div className="border-t border-border p-4">
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="icon" disabled>
-                    <Paperclip className="h-4 w-4" />
-                  </Button>
-                  <div className="flex-1 relative">
-                    <Input
-                      placeholder="Type your message..."
-                      value={message}
-                      onChange={handleTyping}
-                      onKeyPress={handleKeyPress}
-                      className="pr-10"
-                      disabled={!isConnected}
-                    />
+                {/* Message Input */}
+                <div className="border-t border-border p-4">
+                  <div className="flex items-center space-x-2">
+                    <Button variant="ghost" size="icon" disabled>
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
+                    <div className="flex-1 relative">
+                      <Input
+                        placeholder="Type your message..."
+                        value={message}
+                        onChange={handleTyping}
+                        onKeyPress={handleKeyPress}
+                        className="pr-10"
+                        disabled={!isConnected}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full"
+                        disabled
+                      >
+                        <Smile className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <Button
-                      variant="ghost"
+                      variant="hero"
                       size="icon"
-                      className="absolute right-0 top-0 h-full"
-                      disabled
+                      onClick={handleSendMessage}
+                      disabled={!message.trim() || !isConnected}
                     >
-                      <Smile className="h-4 w-4" />
+                      <Send className="h-4 w-4" />
                     </Button>
                   </div>
-                  <Button 
-                    variant="hero" 
-                    size="icon"
-                    onClick={handleSendMessage}
-                    disabled={!message.trim() || !isConnected}
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
                 </div>
-              </div>
-            </Card>
-          </div>
+              </Card>
+            </div>
 
-          {/* Mentor Info Sidebar */}
-          <div className="lg:col-span-1">
-            <Card className="mentor-card">
-              <CardHeader className="text-center">
-                <Avatar className="h-20 w-20 mx-auto mb-4">
-                  <AvatarFallback className="text-3xl">
-                    {mentor ? getInitials(mentor.name) : '??'}
-                  </AvatarFallback>
-                </Avatar>
-                <CardTitle className="text-xl">{mentor?.name || 'Mentor'}</CardTitle>
-                <Badge variant="outline">{mentor?.domain || 'N/A'}</Badge>
-              </CardHeader>
-              
-              <CardContent className="space-y-6">
-                {mentor && (
-                  <div className="text-center">
-                    <div className="flex items-center justify-center space-x-4 text-sm text-muted-foreground">
-                      <div className="flex items-center space-x-1">
-                        <span>⭐</span>
-                        <span>{mentor.averageRating?.toFixed(1) || 'N/A'}</span>
+            {/* Mentor Info Sidebar */}
+            <div className="lg:col-span-1">
+              <Card className="mentor-card">
+                <CardHeader className="text-center">
+                  <Avatar className="h-20 w-20 mx-auto mb-4">
+                    <AvatarFallback className="text-3xl">
+                      {mentor ? getInitials(mentor.name) : '??'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <CardTitle className="text-xl">{mentor?.name || 'Mentor'}</CardTitle>
+                  <Badge variant="outline">{mentor?.domain || 'N/A'}</Badge>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  {mentor && (
+                    <div className="text-center">
+                      <div className="flex items-center justify-center space-x-4 text-sm text-muted-foreground">
+                        <div className="flex items-center space-x-1">
+                          <span>⭐</span>
+                          <span>{mentor.averageRating?.toFixed(1) || 'N/A'}</span>
+                        </div>
+                        <div>{mentor.totalSessions || 0} sessions</div>
                       </div>
-                      <div>{mentor.totalSessions || 0} sessions</div>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-card-foreground">Quick Actions</h4>
+                    <div className="space-y-2">
+                      <Button variant="hero" className="w-full" disabled={!isConnected}>
+                        <Video className="h-4 w-4 mr-2" />
+                        Start Video Call
+                      </Button>
+                      <Button variant="outline" className="w-full" disabled={!isConnected}>
+                        <Phone className="h-4 w-4 mr-2" />
+                        Voice Call
+                      </Button>
+                      <Button variant="outline" className="w-full" disabled={!isConnected}>
+                        Schedule Session
+                      </Button>
                     </div>
                   </div>
-                )}
 
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-card-foreground">Quick Actions</h4>
-                  <div className="space-y-2">
-                    <Button variant="hero" className="w-full" disabled={!isConnected}>
-                      <Video className="h-4 w-4 mr-2" />
-                      Start Video Call
-                    </Button>
-                    <Button variant="outline" className="w-full" disabled={!isConnected}>
-                      <Phone className="h-4 w-4 mr-2" />
-                      Voice Call
-                    </Button>
-                    <Button variant="outline" className="w-full" disabled={!isConnected}>
-                      Schedule Session
-                    </Button>
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-card-foreground">Shared Files</h4>
+                    <div className="text-center py-4">
+                      <p className="text-sm text-muted-foreground">No shared files yet</p>
+                    </div>
                   </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-card-foreground">Shared Files</h4>
-                  <div className="text-center py-4">
-                    <p className="text-sm text-muted-foreground">No shared files yet</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
         )}
       </div>
     </div>

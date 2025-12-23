@@ -1,4 +1,5 @@
 const express = require("express");
+const jwt = require("jsonwebtoken");
 const router = express.Router();
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
@@ -6,6 +7,28 @@ const profilePictureUpload = require("../config/profilePictureConfig");
 const path = require("path");
 const fs = require("fs");
 const { sendSMS } = require("../utils/smsService");
+const authController = require("../controllers/authController");
+const emailService = require("../utils/emailService");
+const passport = require("passport");
+const authMiddleware = require("../middleware/authMiddleware");
+
+// Google OAuth Routes
+router.get("/auth/google", (req, res, next) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.status(503).json({ message: "Google Auth not configured on server" });
+  }
+  passport.authenticate("google", { scope: ["profile", "email"], session: false })(req, res, next);
+});
+
+router.get("/auth/google/callback",
+  passport.authenticate("google", { failureRedirect: "/login", session: false }),
+  (req, res) => {
+    const user = req.user;
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+    const frontendUrl = "http://localhost:5173"; // Hardcoded for now as per env
+    res.redirect(`${frontendUrl}/login?userId=${user._id}&loginSuccess=true&token=${token}`);
+  }
+);
 
 // Validation helper functions
 function validateEmail(email) {
@@ -49,7 +72,7 @@ router.get("/validation-rules", (req, res) => {
       requirements: [
         "At least 8 characters long",
         "At least one uppercase letter (A-Z)",
-        "At least one lowercase letter (a-z)", 
+        "At least one lowercase letter (a-z)",
         "At least one number (0-9)",
         "At least one special character (@$!%*?&)"
       ]
@@ -69,7 +92,7 @@ router.get("/validation-rules", (req, res) => {
 // POST /api/validate - Test validation endpoint
 router.post("/validate", (req, res) => {
   const { email, password } = req.body;
-  
+
   const validation = {
     email: {
       value: email,
@@ -82,7 +105,7 @@ router.post("/validate", (req, res) => {
       message: password ? (validatePassword(password) ? "Valid password" : getPasswordRequirements()) : "Password is required"
     }
   };
-  
+
   res.json({
     isValid: validation.email.isValid && validation.password.isValid,
     validation
@@ -90,138 +113,16 @@ router.post("/validate", (req, res) => {
 });
 
 // POST /api/register
-router.post("/register", async (req, res) => {
-  try {
-    let { name, email, password, role, mentor, mentee, phone } = req.body;
+router.post("/register", authController.registerUser);
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "Please fill all required fields" });
-    }
+// POST /api/verify-email
+router.post("/verify-email", authController.verifyEmail);
 
-    // Clean input data
-    email = String(email).trim().toLowerCase();
-    phone = phone ? String(phone).trim() : undefined;
-    name = String(name).trim();
-    password = String(password).trim();
-
-    // Validate email format and domain
-    if (!validateEmail(email)) {
-      return res.status(400).json({ 
-        message: "Please provide a valid email address with a proper domain (e.g., example@domain.com)" 
-      });
-    }
-
-    // Validate password strength
-    if (!validatePassword(password)) {
-      return res.status(400).json({ 
-        message: getPasswordRequirements()
-      });
-    }
-
-    // Validate phone number if provided
-    if (phone && !validatePhone(phone)) {
-      return res.status(400).json({ 
-        message: getPhoneRequirements()
-      });
-    }
-
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: "User already exists" });
-    }
-
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-    const user = new User({ name, email, password: hashedPassword, role, mentor, mentee, phone });
-    await user.save();
-
-    res.status(201).json({
-      message: "User registered successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        isEmailVerified: user.isEmailVerified,
-        isPhoneVerified: user.isPhoneVerified,
-      },
-    });
-  } catch (err) {
-    console.error(err);
-    
-    // Handle validation errors
-    if (err.name === 'ValidationError') {
-      const errors = Object.values(err.errors).map(e => e.message);
-      return res.status(400).json({ 
-        message: "Validation failed", 
-        errors: errors 
-      });
-    }
-    
-    // Handle duplicate key error (email already exists)
-    if (err.code === 11000) {
-      return res.status(400).json({ message: "User already exists" });
-    }
-    
-    res.status(500).json({ message: "Server error" });
-  }
-});
+// POST /api/resend-otp
+router.post("/resend-otp", authController.resendOTP);
 
 // POST /api/login
-router.post("/login", async (req, res) => {
-  try {
-    let { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
-    }
-
-    email = String(email).trim().toLowerCase();
-    password = String(password).trim();
-
-
-    const user = await User.findOne({ email });
-    if (!user) return res.status(401).json({ message: "Invalid credentials" });
-
-    let isMatch = false;
-    try {
-      isMatch = await bcrypt.compare(password, user.password);
-    } catch (_) {
-      isMatch = false;
-    }
-
-    if (!isMatch && user.password === password) {
-      isMatch = true;
- 
-      try {
-        user.password = await bcrypt.hash(password, 10);
-        await user.save();
-      } catch (_) {}
-    }
-
-    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
-
-  
-    if (!user.isEmailVerified && !user.isPhoneVerified) {
-      return res.status(403).json({ message: "Please verify your email or phone before logging in" });
-    }
-
-    res.json({
-      message: "Login successful",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        profilePicture: user.profilePicture || "",
-      },
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+router.post("/login", authController.loginUser);
 
 
 function generateOtp() {
@@ -250,30 +151,20 @@ router.post("/otp/send", async (req, res) => {
     if (channel === "email") {
       user.emailOtp = code;
       user.emailOtpExpiresAt = expires;
-      const transporter = req.app.get("mailTransporter");
-      if (transporter) {
-        try {
-          await transporter.sendMail({
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
-            to: user.email,
-            subject: "Your verification code",
-            text: `Your verification code is ${code}. It expires in 10 minutes.`,
-          });
-        } catch (e) {
-          console.warn("Failed to send email OTP; logging instead", e?.message);
-          console.log(`Email OTP for ${user.email}: ${code}`);
-        }
-      } else {
+
+      const emailSent = await emailService.sendOTP(user.email, code);
+      if (!emailSent) {
+        console.warn("Failed to send email OTP via emailService; logging instead");
         console.log(`Email OTP for ${user.email}: ${code}`);
       }
     } else {
       user.phoneOtp = code;
       user.phoneOtpExpiresAt = expires;
-      
+
       // Try multiple SMS providers
       const smsClient = req.app.get("smsClient");
       const smsProvider = process.env.SMS_PROVIDER || 'console';
-      
+
       try {
         if (smsProvider !== 'twilio' && smsProvider !== 'console') {
           // Use alternative SMS service (Fast2SMS, MSG91, etc.)
@@ -380,20 +271,10 @@ router.post("/otp/resend", async (req, res) => {
     if (channel === "email") {
       user.emailOtp = code;
       user.emailOtpExpiresAt = expires;
-      const transporter = req.app.get("mailTransporter");
-      if (transporter) {
-        try {
-          await transporter.sendMail({
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
-            to: user.email,
-            subject: "Your verification code (resend)",
-            text: `Your verification code is ${code}. It expires in 10 minutes.`,
-          });
-        } catch (e) {
-          console.warn("Failed to resend email OTP; logging instead", e?.message);
-          console.log(`Resent Email OTP for ${user.email}: ${code}`);
-        }
-      } else {
+
+      const emailSent = await emailService.sendOTP(user.email, code);
+      if (!emailSent) {
+        console.warn("Failed to resend email OTP via emailService; logging instead");
         console.log(`Resent Email OTP for ${user.email}: ${code}`);
       }
     } else {
@@ -462,7 +343,7 @@ router.get("/user", async (req, res) => {
 });
 
 // PUT /api/users/:id - Update user
-router.put("/users/:id", async (req, res) => {
+router.put("/users/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -479,9 +360,9 @@ router.put("/users/:id", async (req, res) => {
     if (updates.email) {
       updates.email = String(updates.email).trim().toLowerCase();
       // Check if email already exists for another user
-      const existingUser = await User.findOne({ 
-        email: updates.email, 
-        _id: { $ne: id } 
+      const existingUser = await User.findOne({
+        email: updates.email,
+        _id: { $ne: id }
       });
       if (existingUser) {
         return res.status(400).json({ message: "Email already exists" });
@@ -502,9 +383,9 @@ router.put("/users/:id", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json({ 
-      message: "User updated successfully", 
-      user 
+    res.json({
+      message: "User updated successfully",
+      user
     });
   } catch (err) {
     console.error(err);
@@ -516,7 +397,7 @@ router.put("/users/:id", async (req, res) => {
 });
 
 // PUT /api/users/:id/password - Update user password
-router.put("/users/:id/password", async (req, res) => {
+router.put("/users/:id/password", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { currentPassword, newPassword } = req.body;
@@ -527,7 +408,7 @@ router.put("/users/:id/password", async (req, res) => {
 
     // Validate new password strength
     if (!validatePassword(newPassword)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: getPasswordRequirements()
       });
     }
@@ -546,32 +427,32 @@ router.put("/users/:id/password", async (req, res) => {
     // Hash new password
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-    
+
     user.password = hashedPassword;
     await user.save();
 
     res.json({ message: "Password updated successfully" });
   } catch (err) {
     console.error(err);
-    
+
     // Handle validation errors
     if (err.name === 'ValidationError') {
       const errors = Object.values(err.errors).map(e => e.message);
-      return res.status(400).json({ 
-        message: "Validation failed", 
-        errors: errors 
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: errors
       });
     }
-    
+
     res.status(500).json({ message: "Server error" });
   }
 });
 
 // DELETE /api/users/:id - Delete user
-router.delete("/users/:id", async (req, res) => {
+router.delete("/users/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const user = await User.findByIdAndDelete(id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -588,10 +469,10 @@ router.delete("/users/:id", async (req, res) => {
 router.get("/mentors", async (req, res) => {
   try {
     const mentors = await User.find(
-      { role: "mentor" }, 
+      { role: "mentor" },
       "name email phone mentor profilePicture bio skills location company position isEmailVerified isPhoneVerified"
     ).lean();
-    
+
     res.json({ mentors });
   } catch (err) {
     console.error(err);
@@ -603,10 +484,10 @@ router.get("/mentors", async (req, res) => {
 router.get("/students", async (req, res) => {
   try {
     const students = await User.find(
-      { role: "student" }, 
+      { role: "student" },
       "name email phone mentee profilePicture bio skills location isEmailVerified isPhoneVerified"
     ).lean();
-    
+
     res.json({ students });
   } catch (err) {
     console.error(err);
@@ -615,10 +496,10 @@ router.get("/students", async (req, res) => {
 });
 
 // POST /api/profile - Create or update user profile
-router.post("/profile", async (req, res) => {
+router.post("/profile", authMiddleware, async (req, res) => {
   try {
     const { email, mentorExtras, menteeExtras, ...profileData } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
     }
@@ -648,7 +529,7 @@ router.post("/profile", async (req, res) => {
         languages: Array.isArray(profileData.languages) ? profileData.languages.join(", ") : "",
         services: Array.isArray(mentorExtras.services) ? mentorExtras.services.join(", ") : "",
         availability: Array.isArray(profileData.availability) ? profileData.availability.join(", ") : "",
-        
+
         // Additional mentor fields
         industries: Array.isArray(mentorExtras.industries) ? mentorExtras.industries : [],
         mentorshipFormats: Array.isArray(mentorExtras.formats) ? mentorExtras.formats : [],
@@ -656,7 +537,7 @@ router.post("/profile", async (req, res) => {
         timezone: mentorExtras.timezone || "",
         maxStudents: mentorExtras.maxStudents || 10,
         preferredStudentLevel: Array.isArray(mentorExtras.preferredStudentLevel) ? mentorExtras.preferredStudentLevel : [],
-        
+
         // Keep existing metrics if they exist, otherwise set defaults
         totalSessions: mentorExtras.totalSessions || 0,
         activeStudents: mentorExtras.activeStudents || 0,
@@ -672,14 +553,14 @@ router.post("/profile", async (req, res) => {
         currentLevel: menteeExtras.currentLevel || "",
         interests: Array.isArray(menteeExtras.interests) ? menteeExtras.interests.join(", ") : "",
         goals: Array.isArray(menteeExtras.goals) ? menteeExtras.goals.join(", ") : "",
-        
+
         // Additional student fields
         learningStyle: menteeExtras.learningStyle || "",
         portfolioLinks: Array.isArray(menteeExtras.portfolioLinks) ? menteeExtras.portfolioLinks : [],
         preferredCommunicationStyle: menteeExtras.preferredCommunicationStyle || "",
         timezone: menteeExtras.timezone || "",
         preferredMentorTypes: Array.isArray(menteeExtras.preferredMentorTypes) ? menteeExtras.preferredMentorTypes : [],
-        
+
         // Keep existing metrics if they exist, otherwise set defaults
         completedSessions: menteeExtras.completedSessions || 0,
         activeMentors: menteeExtras.activeMentors || 0,
@@ -702,9 +583,9 @@ router.post("/profile", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json({ 
-      message: "Profile updated successfully", 
-      user 
+    res.json({
+      message: "Profile updated successfully",
+      user
     });
   } catch (err) {
     console.error("Profile update error:", err);
@@ -716,9 +597,9 @@ router.post("/profile", async (req, res) => {
 router.get("/profile/:email", async (req, res) => {
   try {
     const email = req.params.email.toLowerCase().trim();
-    
+
     const user = await User.findOne({ email }).select("-password -emailOtp -phoneOtp -emailOtpExpiresAt -phoneOtpExpiresAt").lean();
-    
+
     if (!user) {
       return res.status(404).json({ message: "User profile not found" });
     }
@@ -741,11 +622,11 @@ router.get("/profile/:email", async (req, res) => {
       position: user.position || "",
       isActive: user.isActive,
       lastLogin: user.lastLogin,
-      
+
       // Include mentor/mentee specific data
       mentor: user.mentor || null,
       mentee: user.mentee || null,
-      
+
       // Legacy fields for backward compatibility
       experience: user.mentor?.experience || "",
       hourlyRate: user.mentor?.hourlyRate || ""
@@ -762,14 +643,14 @@ router.get("/profile/:email", async (req, res) => {
 router.get("/mentors", async (req, res) => {
   try {
     const { page = 1, limit = 10, domain, skills, experience, minRating } = req.query;
-    
+
     // Build query filters
-    const filters = { 
-      role: "mentor", 
+    const filters = {
+      role: "mentor",
       isActive: true,
-      "mentor.isVerified": true 
+      "mentor.isVerified": true
     };
-    
+
     if (domain) filters.company = new RegExp(domain, 'i');
     if (skills) filters.skills = { $in: skills.split(",") };
     if (experience) filters["mentor.experience"] = experience;
@@ -799,13 +680,13 @@ router.get("/mentors", async (req, res) => {
 router.get("/students", async (req, res) => {
   try {
     const { page = 1, limit = 10, skills, interests, currentLevel } = req.query;
-    
+
     // Build query filters
-    const filters = { 
-      role: "student", 
-      isActive: true 
+    const filters = {
+      role: "student",
+      isActive: true
     };
-    
+
     if (skills) filters.skills = { $in: skills.split(",") };
     if (interests) filters["mentee.interests"] = new RegExp(interests, 'i');
     if (currentLevel) filters["mentee.currentLevel"] = currentLevel;
@@ -831,10 +712,10 @@ router.get("/students", async (req, res) => {
 });
 
 // PUT /api/mentor/:id/stats - Update mentor statistics
-router.put("/mentor/:id/stats", async (req, res) => {
+router.put("/mentor/:id/stats", authMiddleware, async (req, res) => {
   try {
     const { totalSessions, activeStudents, averageRating, totalReviews } = req.body;
-    
+
     const updateData = {};
     if (totalSessions !== undefined) updateData["mentor.totalSessions"] = totalSessions;
     if (activeStudents !== undefined) updateData["mentor.activeStudents"] = activeStudents;
@@ -851,9 +732,9 @@ router.put("/mentor/:id/stats", async (req, res) => {
       return res.status(404).json({ message: "Mentor not found" });
     }
 
-    res.json({ 
-      message: "Mentor statistics updated successfully", 
-      mentor: user 
+    res.json({
+      message: "Mentor statistics updated successfully",
+      mentor: user
     });
   } catch (err) {
     console.error(err);
@@ -862,10 +743,10 @@ router.put("/mentor/:id/stats", async (req, res) => {
 });
 
 // PUT /api/student/:id/stats - Update student statistics
-router.put("/student/:id/stats", async (req, res) => {
+router.put("/student/:id/stats", authMiddleware, async (req, res) => {
   try {
     const { completedSessions, activeMentors, hoursLearned, averageRating } = req.body;
-    
+
     const updateData = {};
     if (completedSessions !== undefined) updateData["mentee.completedSessions"] = completedSessions;
     if (activeMentors !== undefined) updateData["mentee.activeMentors"] = activeMentors;
@@ -882,9 +763,9 @@ router.put("/student/:id/stats", async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
 
-    res.json({ 
-      message: "Student statistics updated successfully", 
-      student: user 
+    res.json({
+      message: "Student statistics updated successfully",
+      student: user
     });
   } catch (err) {
     console.error(err);
@@ -896,7 +777,7 @@ router.put("/student/:id/stats", async (req, res) => {
 router.post("/session-complete", async (req, res) => {
   try {
     const { mentorId, studentId, hoursSpent = 1, mentorRating, studentRating } = req.body;
-    
+
     if (!mentorId || !studentId) {
       return res.status(400).json({ message: "Both mentorId and studentId are required" });
     }
@@ -935,8 +816,8 @@ router.post("/session-complete", async (req, res) => {
       await User.findByIdAndUpdate(studentId, newStudentStats);
     }
 
-    res.json({ 
-      message: "Session completed successfully", 
+    res.json({
+      message: "Session completed successfully",
     });
   } catch (err) {
     console.error(err);
@@ -990,9 +871,9 @@ router.post("/profile/upload-picture", profilePictureUpload.single('profilePictu
       fs.unlinkSync(req.file.path);
     }
     console.error("Error uploading profile picture:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Failed to upload profile picture",
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -1027,9 +908,9 @@ router.delete("/profile/delete-picture", async (req, res) => {
     res.json({ message: "Profile picture deleted successfully" });
   } catch (error) {
     console.error("Error deleting profile picture:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Failed to delete profile picture",
-      error: error.message 
+      error: error.message
     });
   }
 });

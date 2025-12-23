@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const chatRequestController = require('../controllers/chatRequestController');
+const authMiddleware = require("../middleware/authMiddleware");
+
+// Protect all chat request routes
+router.use(authMiddleware);
 
 // Create a chat request
 router.post('/request', chatRequestController.createChatRequest);

@@ -60,7 +60,7 @@ const Messages = () => {
     const handleNewMessage = (message: any) => {
       console.log('📬 New message received in Messages page:', message);
       console.log('🔄 Reloading conversations...');
-      
+
       // Reload conversations to get updated list
       loadConversations(currentUser);
     };
@@ -68,7 +68,7 @@ const Messages = () => {
     const handleChatNotification = (data: any) => {
       console.log('🔔 Chat notification received in Messages page:', data);
       console.log('🔄 Reloading conversations...');
-      
+
       // Reload conversations
       loadConversations(currentUser);
     };
@@ -88,14 +88,14 @@ const Messages = () => {
   const loadConversations = async (user: any) => {
     try {
       setIsLoading(true);
-      
+
       console.log('📝 Loading conversations for user:', user.email);
-      
+
       // Fetch all conversations
       const response = await fetch(API_ENDPOINTS.CHAT_CONVERSATIONS(user.email));
-      
+
       console.log('📊 Response status:', response.status);
-      
+
       if (!response.ok) {
         throw new Error('Failed to load conversations');
       }
@@ -103,7 +103,7 @@ const Messages = () => {
       const data = await response.json();
       console.log('📦 Raw conversations data:', data);
       console.log('📊 Number of conversations:', data.length);
-      
+
       // Fetch user details for each conversation
       const conversationsWithUsers = await Promise.all(
         data.map(async (conv: any) => {
@@ -112,7 +112,7 @@ const Messages = () => {
           const [user1, user2] = conversationId.split('_');
           const otherUserEmail = user1 === user.email ? user2 : user1;
           console.log('👤 Other user email:', otherUserEmail);
-          
+
           try {
             const userResponse = await fetch(API_ENDPOINTS.PROFILE_BY_EMAIL(otherUserEmail));
             if (userResponse.ok) {
@@ -131,7 +131,7 @@ const Messages = () => {
           } catch (error) {
             console.error('❌ Error fetching user details:', error);
           }
-          
+
           return {
             ...conv,
             otherUser: {
@@ -142,7 +142,7 @@ const Messages = () => {
           };
         })
       );
-      
+
       console.log('✅ Final conversations with users:', conversationsWithUsers);
       setConversations(conversationsWithUsers);
     } catch (error) {
@@ -215,7 +215,7 @@ const Messages = () => {
 
   return (
     <div className="flex-1 bg-muted/30">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-8 pt-24">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -252,9 +252,9 @@ const Messages = () => {
                   {searchQuery ? 'No conversations found' : 'No messages yet'}
                 </h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  {searchQuery 
-                    ? 'Try a different search term' 
-                    : currentUser?.role === 'mentor' 
+                  {searchQuery
+                    ? 'Try a different search term'
+                    : currentUser?.role === 'mentor'
                       ? 'Students will appear here when they message you'
                       : 'Start a conversation with a mentor'
                   }
@@ -270,9 +270,8 @@ const Messages = () => {
             filteredConversations.map((conversation) => (
               <Card
                 key={conversation._id}
-                className={`cursor-pointer hover:shadow-md transition-shadow ${
-                  conversation.unreadCount > 0 ? 'border-l-4 border-l-primary bg-primary/5' : ''
-                }`}
+                className={`cursor-pointer hover:shadow-md transition-shadow ${conversation.unreadCount > 0 ? 'border-l-4 border-l-primary bg-primary/5' : ''
+                  }`}
                 onClick={() => handleOpenChat(conversation.otherUser.email)}
               >
                 <CardContent className="p-4">
@@ -281,7 +280,7 @@ const Messages = () => {
                     <div className="relative">
                       <Avatar className="h-12 w-12 border-2 border-primary/20">
                         {conversation.otherUser.avatar && (
-                          <AvatarImage 
+                          <AvatarImage
                             src={`${API_BASE_URL}${conversation.otherUser.avatar}`}
                             alt={conversation.otherUser.name}
                           />
@@ -325,14 +324,13 @@ const Messages = () => {
                           )}
                         </div>
                       </div>
-                      
-                      <p className={`text-sm truncate ${
-                        conversation.unreadCount > 0 
-                          ? 'text-foreground font-medium' 
+
+                      <p className={`text-sm truncate ${conversation.unreadCount > 0
+                          ? 'text-foreground font-medium'
                           : 'text-muted-foreground'
-                      }`}>
-                        {conversation.lastMessage.sender === currentUser?.email 
-                          ? 'You: ' 
+                        }`}>
+                        {conversation.lastMessage.sender === currentUser?.email
+                          ? 'You: '
                           : ''
                         }
                         {conversation.lastMessage.content}

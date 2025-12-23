@@ -8,23 +8,23 @@ const mentorSchema = new mongoose.Schema({
   languages: String,
   services: String,
   availability: String,
-  
+
   // Additional mentor fields
   industries: [String],
   mentorshipFormats: [String],
-  
+
   // Performance metrics
   totalSessions: { type: Number, default: 0 },
   activeStudents: { type: Number, default: 0 },
   averageRating: { type: Number, default: 0 },
   totalReviews: { type: Number, default: 0 },
-  
+
   // Preferences
   maxStudents: { type: Number, default: 10 },
   preferredStudentLevel: [String],
   communicationStyle: String,
   timezone: String,
-  
+
   // Status
   isVerified: { type: Boolean, default: false },
 });
@@ -35,17 +35,17 @@ const menteeSchema = new mongoose.Schema({
   currentLevel: String,
   interests: String,
   goals: String,
-  
+
   // Additional student fields
   learningStyle: String,
   portfolioLinks: [String],
-  
+
   // Learning progress
   completedSessions: { type: Number, default: 0 },
   activeMentors: { type: Number, default: 0 },
   hoursLearned: { type: Number, default: 0 },
   averageRating: { type: Number, default: 0 },
-  
+
   // Preferences
   preferredMentorTypes: [String],
   preferredCommunicationStyle: String,
@@ -56,12 +56,12 @@ const menteeSchema = new mongoose.Schema({
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  email: { 
-    type: String, 
-    required: true, 
+  email: {
+    type: String,
+    required: true,
     unique: true,
     validate: {
-      validator: function(email) {
+      validator: function (email) {
         // Email must contain a valid TLD (.com, .org, .net, etc.)
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         return emailRegex.test(email);
@@ -69,16 +69,19 @@ const userSchema = new mongoose.Schema({
       message: 'Please provide a valid email address with a proper domain (e.g., example@domain.com)'
     }
   },
-  password: { 
-    type: String, 
-    required: true
-    // Password validation is done in the route before hashing
+  password: {
+    type: String,
+    required: function () {
+      return this.authProvider === 'local';
+    }
   },
+  googleId: { type: String, unique: true, sparse: true },
+  authProvider: { type: String, enum: ["local", "google"], default: "local" },
   role: { type: String, enum: ["student", "mentor"], default: "student" },
-  phone: { 
+  phone: {
     type: String,
     validate: {
-      validator: function(phone) {
+      validator: function (phone) {
         // Phone number must be exactly 10 digits
         if (!phone) return true; // Phone is optional
         const phoneRegex = /^[0-9]{10}$/;
@@ -87,7 +90,7 @@ const userSchema = new mongoose.Schema({
       message: 'Phone number must be exactly 10 digits (numbers only)'
     }
   },
-  
+
   // Profile fields
   location: String,
   bio: String,
@@ -99,11 +102,11 @@ const userSchema = new mongoose.Schema({
   company: String,
   position: String,
   availability: [String],
-  
+
   // General user metrics and status
   isActive: { type: Boolean, default: true },
   lastLogin: Date,
-  
+
   // Verification fields
   isEmailVerified: { type: Boolean, default: false },
   isPhoneVerified: { type: Boolean, default: false },
@@ -111,7 +114,7 @@ const userSchema = new mongoose.Schema({
   emailOtpExpiresAt: { type: Date },
   phoneOtp: { type: String },
   phoneOtpExpiresAt: { type: Date },
-  
+
   // Role-specific nested data
   mentor: mentorSchema,
   mentee: menteeSchema,

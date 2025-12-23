@@ -25,6 +25,7 @@ import Notifications from "./pages/Notifications";
 import BlogEditor from "./pages/BlogEditor";
 import Requests from "./pages/Requests";
 import VideoCall from "./pages/VideoCall";
+import BlogDetail from "./pages/BlogDetail";
 
 const queryClient = new QueryClient();
 
@@ -49,7 +50,7 @@ const App = () => (
             <Route path="/booking" element={<Booking />} />
             <Route path="/progress" element={<Progress />} />
             <Route path="/blog" element={<Blog />} />
-            <Route path="/blog/:id" element={<Blog />} />
+            <Route path="/blog/:id" element={<BlogDetail />} />
             <Route path="/blog-editor" element={<BlogEditor />} />
             <Route path="/files" element={<FileSharing />} />
             <Route path="/messages" element={<Messages />} />

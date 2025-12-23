@@ -4,6 +4,7 @@ const cors = require("cors");
 const http = require("http");
 const { Server } = require("socket.io");
 require("dotenv").config();
+const passport = require('./config/passport');
 
 // Import routes
 const authRoutes = require("./routes/auth");
@@ -11,6 +12,7 @@ const bookingRoutes = require("./routes/booking");
 const chatRoutes = require("./routes/chat");
 const chatRequestRoutes = require("./routes/chatRequest");
 const resourceRoutes = require("./routes/resource");
+const blogRoutes = require("./routes/blog");
 
 // Import models
 const Message = require("./models/Message");
@@ -39,9 +41,9 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: [
-      "http://localhost:5000", 
-      "http://localhost:5173", 
-      "http://localhost:5174", 
+      "http://localhost:5000",
+      "http://localhost:5173",
+      "http://localhost:5174",
       "http://localhost:8080",
       "http://localhost:8081"
     ],
@@ -62,10 +64,10 @@ io.on('connection', (socket) => {
     socket.userId = userId;
     console.log(`👤 User ${userId} joined`);
     console.log('📊 Current online users:', Array.from(onlineUsers.keys()));
-    
+
     // Send current online users list to the newly joined user
     socket.emit('online-users-list', Array.from(onlineUsers.keys()));
-    
+
     // Broadcast online status to all users
     io.emit('user-status', { userId, status: 'online' });
   });
@@ -75,16 +77,16 @@ io.on('connection', (socket) => {
     try {
       console.log('📨 Received send-message event:', data);
       const { sender, receiver, content, type } = data;
-      
+
       if (!sender || !receiver || !content) {
         console.error('❌ Missing required fields:', { sender, receiver, content });
         socket.emit('message-error', { error: 'Missing required fields' });
         return;
       }
-      
+
       // Create conversation ID (sorted to ensure consistency)
       const conversationId = [sender, receiver].sort().join('_');
-      
+
       // Save message to database
       const message = new Message({
         conversationId,
@@ -94,10 +96,10 @@ io.on('connection', (socket) => {
         type: type || 'text',
         timestamp: new Date()
       });
-      
+
       await message.save();
       console.log('✅ Message saved to DB:', message._id);
-      
+
       const messageData = {
         _id: message._id,
         id: message._id,
@@ -109,15 +111,15 @@ io.on('connection', (socket) => {
         read: message.read,
         type: message.type
       };
-      
+
       // Send to receiver if online
       const receiverSocketId = onlineUsers.get(receiver);
       console.log('Receiver socket ID:', receiverSocketId, 'Online users:', Array.from(onlineUsers.keys()));
-      
+
       if (receiverSocketId) {
         console.log('📤 Sending message to receiver:', receiver);
         io.to(receiverSocketId).emit('receive-message', messageData);
-        
+
         // Send notification event to receiver
         io.to(receiverSocketId).emit('new-chat-notification', {
           sender: message.sender,
@@ -127,11 +129,11 @@ io.on('connection', (socket) => {
       } else {
         console.log('⚠️ Receiver not online:', receiver);
       }
-      
+
       // Confirm to sender
       console.log('✅ Sending confirmation to sender');
       socket.emit('message-sent', messageData);
-      
+
       // Also send notification to sender to update their conversation list
       const senderSocketId = onlineUsers.get(sender);
       if (senderSocketId) {
@@ -143,7 +145,7 @@ io.on('connection', (socket) => {
           timestamp: message.timestamp
         });
       }
-      
+
     } catch (error) {
       console.error('❌ Error sending message:', error);
       socket.emit('message-error', { error: error.message });
@@ -173,7 +175,7 @@ io.on('connection', (socket) => {
     if (socket.userId) {
       onlineUsers.delete(socket.userId);
       console.log(`👤 User ${socket.userId} disconnected`);
-      
+
       // Broadcast offline status
       io.emit('user-status', { userId: socket.userId, status: 'offline' });
     }
@@ -185,8 +187,8 @@ io.on('connection', (socket) => {
 app.use(cors({
   origin: [
     "http://localhost:5000",
-    "http://localhost:5173", 
-    "http://localhost:5174", 
+    "http://localhost:5173",
+    "http://localhost:5174",
     "http://localhost:8080",
     "http://localhost:8081"
   ],
@@ -196,6 +198,7 @@ app.use(cors({
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(passport.initialize());
 
 // Serve uploaded files statically
 app.use('/uploads', express.static('uploads'));
@@ -211,6 +214,7 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/chat", chatRequestRoutes);
 app.use("/api", resourceRoutes);
+app.use("/api/blogs", blogRoutes);
 
 
 
@@ -239,7 +243,7 @@ registerGlobalHandlers({ server, mongooseConnection: mongoose.connection });
 // Email Configuration (Nodemailer)
 const setupEmailTransporter = () => {
   const hasMailCreds = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS;
-  
+
   if (hasMailCreds && nodemailer) {
     try {
       const transporter = nodemailer.createTransport({
@@ -267,7 +271,7 @@ const setupSmsClient = () => {
   const twilioSid = process.env.TWILIO_ACCOUNT_SID || "";
   const twilioToken = process.env.TWILIO_AUTH_TOKEN || "";
   const twilioFrom = process.env.TWILIO_FROM_NUMBER || "";
-  
+
   const looksLikeSid = /^AC[0-9a-f]{32}$/i.test(twilioSid);
   const looksLikeToken = /^[0-9a-f]{32}$/i.test(twilioToken);
   const hasValidTwilio = looksLikeSid && looksLikeToken && /^\+\d{7,15}$/.test(twilioFrom);

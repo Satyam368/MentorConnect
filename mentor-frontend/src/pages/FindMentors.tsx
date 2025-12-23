@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { Search, MapPin, Star, Calendar, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { API_ENDPOINTS } from "@/lib/api";
@@ -53,12 +52,12 @@ const FindMentors = () => {
 
   const filteredMentors = mentors.filter(mentor => {
     const matchesSearch = mentor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (mentor.company || mentor.mentor?.domain || '')?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (mentor.skills || []).some((skill: string) => skill.toLowerCase().includes(searchTerm.toLowerCase()));
+      (mentor.company || mentor.mentor?.domain || '')?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (mentor.skills || []).some((skill: string) => skill.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesDomain = selectedDomain === "all" || mentor.company === selectedDomain || mentor.mentor?.domain === selectedDomain;
     const matchesLocation = selectedLocation === "all" || mentor.location === selectedLocation;
     const matchesLanguage = selectedLanguage === "all" || (mentor.languages || []).includes(selectedLanguage);
-    
+
     return matchesSearch && matchesDomain && matchesLocation && matchesLanguage;
   });
 
@@ -88,7 +87,7 @@ const FindMentors = () => {
   return (
     <div className="flex-1">
       {/* Header */}
-      <div className="bg-muted/30 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="bg-muted/30 pt-24 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-4xl font-bold text-foreground mb-4">Find Your Perfect Mentor</h1>
           <p className="text-xl text-muted-foreground max-w-3xl">
@@ -111,7 +110,7 @@ const FindMentors = () => {
               />
             </div>
           </div>
-          
+
           <Select value={selectedDomain} onValueChange={setSelectedDomain}>
             <SelectTrigger>
               <SelectValue placeholder="Select Domain" />
@@ -167,7 +166,7 @@ const FindMentors = () => {
                       <p className="text-sm text-muted-foreground">{mentor.company || mentor.mentor?.domain || 'Mentor'}</p>
                     </div>
                   </div>
-                  <Badge 
+                  <Badge
                     variant={mentor.isActive ? "default" : "secondary"}
                     className={mentor.isActive ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}
                   >
@@ -175,7 +174,7 @@ const FindMentors = () => {
                   </Badge>
                 </div>
               </CardHeader>
-              
+
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   {mentor.bio || 'Experienced professional ready to help you grow.'}
@@ -219,8 +218,8 @@ const FindMentors = () => {
                 </div>
 
                 <div className="flex space-x-2">
-                  <Button 
-                    variant="hero" 
+                  <Button
+                    variant="hero"
                     className="flex-1"
                     onClick={() => {
                       const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
@@ -238,8 +237,8 @@ const FindMentors = () => {
                   >
                     Request Session
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="icon"
                     onClick={async () => {
                       const userData = localStorage.getItem('authUser') || localStorage.getItem('user');
@@ -251,19 +250,19 @@ const FindMentors = () => {
                         });
                         return;
                       }
-                      
+
                       const user = JSON.parse(userData);
-                      
+
                       // Save current page for back navigation
                       localStorage.setItem('previousPage', '/mentors');
-                      
+
                       // Check if already approved or send request
                       try {
                         const permissionResponse = await fetch(
                           API_ENDPOINTS.CHAT_PERMISSION_CHECK(user.email, mentor.email)
                         );
                         const permissionData = await permissionResponse.json();
-                        
+
                         if (permissionData.canChat) {
                           navigate(`/chat/${mentor.email}`);
                         } else {
@@ -277,9 +276,9 @@ const FindMentors = () => {
                               message: `Hi ${mentor.name}, I would like to connect with you.`
                             })
                           });
-                          
+
                           const data = await response.json();
-                          
+
                           if (data.canChat) {
                             navigate(`/chat/${mentor.email}`);
                           } else {

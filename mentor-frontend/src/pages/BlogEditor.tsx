@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Tags, Layout, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { blogService } from "@/services/blogService";
 
 const BlogEditor = () => {
   const { toast } = useToast();
@@ -18,6 +19,22 @@ const BlogEditor = () => {
   const [category, setCategory] = useState("React");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("authUser") || localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    } else {
+      toast({
+        title: "Authentication required",
+        description: "Please log in to write a blog post",
+        variant: "destructive"
+      });
+      navigate("/login");
+    }
+  }, [navigate, toast]);
 
   const addTag = () => {
     const t = tagInput.trim();
@@ -27,13 +44,36 @@ const BlogEditor = () => {
 
   const removeTag = (t: string) => setTags(tags.filter(x => x !== t));
 
-  const handlePublish = () => {
-    toast({ title: "Post published!", description: "Your article is now live (mock)." });
-    navigate("/blog");
+  const handlePublish = async () => {
+    if (!user) return;
+
+    try {
+      setIsSubmitting(true);
+      await blogService.createBlog({
+        title,
+        content,
+        excerpt,
+        category,
+        tags,
+        authorId: user.id || user._id // Handle both id formats
+      });
+
+      toast({ title: "Post published!", description: "Your article is now live." });
+      navigate("/blog");
+    } catch (error) {
+      console.error("Error publishing blog:", error);
+      toast({
+        title: "Error",
+        description: "Failed to publish blog post. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="flex-1 bg-muted/30">
+    <div className="flex-1 bg-muted/30 pt-24">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2 flex items-center">
@@ -65,6 +105,8 @@ const BlogEditor = () => {
                     <SelectItem value="Node.js">Node.js</SelectItem>
                     <SelectItem value="UX Design">UX Design</SelectItem>
                     <SelectItem value="Career">Career</SelectItem>
+                    <SelectItem value="System Design">System Design</SelectItem>
+                    <SelectItem value="Data Science">Data Science</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -96,8 +138,8 @@ const BlogEditor = () => {
               <Button variant="outline" onClick={() => toast({ title: "Draft saved" })}>
                 <Save className="h-4 w-4 mr-2" /> Save Draft
               </Button>
-              <Button onClick={handlePublish} disabled={!title || !content}>
-                Publish
+              <Button onClick={handlePublish} disabled={!title || !content || isSubmitting}>
+                {isSubmitting ? "Publishing..." : "Publish"}
               </Button>
             </div>
           </CardContent>
@@ -108,5 +150,3 @@ const BlogEditor = () => {
 };
 
 export default BlogEditor;
-
-
